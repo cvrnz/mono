@@ -17,6 +17,7 @@ export type Settings = {
   vim: boolean
   lineNumbers: boolean
   maxColumns: number
+  gitDepth: number
   fontSize: number
   fontFamily: string
   dockerPath?: string
@@ -44,6 +45,7 @@ export const defaultSettings: Settings = {
   vim: true,
   lineNumbers: true,
   maxColumns: 120,
+  gitDepth: 4,
   fontSize: 16,
   fontFamily: '"JetBrainsMono Nerd Font", "JetBrains Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace',
   recents: [],

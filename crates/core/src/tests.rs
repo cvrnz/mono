@@ -132,3 +132,19 @@ fn a_terminal_runs_a_command_and_reports_its_exit() {
     assert!(String::from_utf8_lossy(&output).contains("monomyth"));
     assert!(s.call("term.input", json!({ "id": id, "data": "" })).unwrap_err().contains("no terminal"));
 }
+
+#[test]
+fn repos_are_found_to_the_chosen_depth() {
+    let (s, _) = service();
+    let (_d, w) = dir();
+    for repo in ["a", "x/y/z/deep", "x/y/z/deep/inner", ".hidden/r", "node_modules/r", "Library/r", "five/b/c/d/e"] {
+        std::fs::create_dir_all(format!("{w}/{repo}/.git")).unwrap();
+    }
+    let names = |depth: Value| -> Vec<String> {
+        let list = s.call("scm.repos", json!({ "roots": [w], "depth": depth })).unwrap();
+        list.as_array().unwrap().iter().map(|r| r["name"].as_str().unwrap().to_string()).collect()
+    };
+    assert_eq!(names(Value::Null), ["a", "x/y/z/deep"]);
+    assert_eq!(names(json!(5)), ["a", "five/b/c/d/e", "x/y/z/deep", "x/y/z/deep/inner"]);
+    assert_eq!(names(json!(1)), ["a"]);
+}

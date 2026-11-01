@@ -19,7 +19,7 @@ export function keyLabel(keys: string): string {
   return 'Ctrl+' + keys
 }
 
-function setNumber(name: string, key: 'maxColumns' | 'fontSize', min: number, max: number) {
+function setNumber(name: string, key: 'maxColumns' | 'fontSize' | 'gitDepth', min: number, max: number) {
   return async (args: string) => {
     let text = args.trim()
     if (!text) {
@@ -89,6 +89,11 @@ export const commands: Command[] = [
       updateSettings({ vim })
       toast(vim ? 'Vim keybindings on' : 'Vim keybindings off')
     },
+  },
+  {
+    name: 'GitDepth',
+    desc: 'How many folders deep the git tab looks for repos (default 4)',
+    run: setNumber('Git depth', 'gitDepth', 0, 12),
   },
   { name: 'Explorer', desc: 'File explorer (and back)', keys: 'E', run: () => A.openExplorer() },
   {

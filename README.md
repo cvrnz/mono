@@ -64,7 +64,7 @@ move through the output and scrollback, `v`/`V` select, `y` copies (`yy` the lin
 the shell.
 
 The command palette runs the app's commands (`Themes`, `ToggleLineNumbers`, `ToggleVim`,
-`FontSize 15`, `MaxColumns 100`, `Reconnect`, `NewProject`, `Disconnect`, ...) and, in a file with Vim
+`FontSize 15`, `MaxColumns 100`, `GitDepth 6`, `Reconnect`, `NewProject`, `Disconnect`, ...) and, in a file with Vim
 keybindings, any Ex command (`w`, `e path`, `%s/a/b/g`, `10`, `sort`; `:` in the file opens Vim's own
 prompt for those too). Tab completes the highlighted command.
 
@@ -91,7 +91,8 @@ come after them.
   `sqlConnections` in the settings file.
 - **Git** (Cmd+G, again to go back): Repos and Changes lists (Tab switches), a side-by-side diff of
   the selected file, and a sync button that pulls, pushes or publishes the branch. Enter on a
-  file opens it.
+  file opens it. Repos are found up to 4 folders below the project's folder (skipping hidden
+  folders and `node_modules`) and listed as a tree; `GitDepth 6` looks deeper.
 - **Welcome**: Tab shows another piece of art; `i`, `a` or `o` starts a new file.
 
 Settings (theme, Vim on/off, line numbers, font, centered width, the path to `docker`, recent

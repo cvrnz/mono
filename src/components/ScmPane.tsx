@@ -14,6 +14,37 @@ import SideSplitter, { sideStyle, useSideWidth } from './SideSplitter'
 type Busy = { repo: string; verb: string; frame: number } | { repo: string; text: string; cls: string }
 type Row = { text: React.ReactNode; width: number; item?: { repo?: Repo; change?: Change; sync?: boolean } }
 
+type Entry = { label: string; indent: number; repo?: Repo }
+type Node = { children: Map<string, Node>; repo?: Repo }
+
+function repoTree(repos: Repo[]): Entry[] {
+  const top: Node = { children: new Map() }
+  for (const r of repos) {
+    let node = top
+    for (const part of r.name.split('/')) {
+      if (!node.children.has(part)) node.children.set(part, { children: new Map() })
+      node = node.children.get(part)!
+    }
+    node.repo = r
+  }
+  const out: Entry[] = []
+  const walk = (node: Node, indent: number) => {
+    for (const [name, child] of [...node.children].sort(([a], [b]) => a.localeCompare(b))) {
+      let label = name
+      let at = child
+      while (!at.repo && at.children.size === 1) {
+        const [next, inner] = [...at.children][0]
+        label += '/' + next
+        at = inner
+      }
+      out.push(at.repo ? { label, indent, repo: at.repo } : { label: label + '/', indent })
+      walk(at, indent + 1)
+    }
+  }
+  walk(top, 0)
+  return out
+}
+
 const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 const lastFetch = new Map<string, number>()
 
@@ -43,7 +74,7 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     const root = rootPath()
     let list: Repo[]
     try {
-      list = await agent.repos([root])
+      list = await agent.repos([root], S.get().settings.gitDepth)
     } catch (err) {
       toast(errorText(err), 'error')
       return
@@ -75,10 +106,19 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     refresh((list) => list.find((r) => isInside(root, r.path))).then((res) => {
       if (res?.current) {
         setView('changes')
-        setSel({ repos: res.list.indexOf(res.current), changes: 0 })
+        setSel({ repos: repoTree(res.list).findIndex((e) => e.repo?.path === res.current!.path), changes: 0 })
       }
     })
   }, [refresh])
+
+  const gitDepth = settings.gitDepth
+  const shown = useRef({ root: hello?.root, gitDepth })
+  useEffect(() => {
+    if (shown.current.root === hello?.root && shown.current.gitDepth === gitDepth) return
+    shown.current = { root: hello?.root, gitDepth }
+    setRepos(null)
+    refresh()
+  }, [hello?.root, gitDepth, refresh])
 
   useEffect(() => {
     if (!active) return
@@ -112,9 +152,13 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
       const text = `No git repos in ${pretty(rootPath(), '', hello?.home ?? '')}`
       return [{ text: <span className="dim">{text}</span>, width: text.length }]
     }
-    const nameWidth = Math.max(...repos.map((r) => r.name.length))
-    return repos.map((r) => {
-      const name = r.name.padEnd(nameWidth)
+    const tree = repoTree(repos)
+    const nameWidth = Math.max(...tree.map((e) => e.indent * 2 + e.label.length))
+    return tree.map((e) => {
+      const pad = '  '.repeat(e.indent)
+      const r = e.repo
+      if (!r) return { width: 2 + pad.length + e.label.length, text: <span className="dim">{'  ' + pad + e.label}</span> }
+      const name = (pad + e.label).padEnd(nameWidth)
       const parts = [r.count > 0 ? '●' : ' ', ' ', name, '  ', r.branch]
       let width = parts.join('').length
       if (r.arrows) width += 2 + r.arrows.length
@@ -124,8 +168,9 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
         item: { repo: r },
         text: (
           <>
-            <span className="warnc">{r.count > 0 ? '●' : ' '}</span> <span style={repo?.path === r.path ? { color: 'var(--blue)', fontWeight: 'bold' } : undefined}>{r.name}</span>
-            {' '.repeat(nameWidth - r.name.length)}
+            <span className="warnc">{r.count > 0 ? '●' : ' '}</span> {pad}
+            <span style={repo?.path === r.path ? { color: 'var(--blue)', fontWeight: 'bold' } : undefined}>{e.label}</span>
+            {' '.repeat(nameWidth - pad.length - e.label.length)}
             {'  '}
             <span className="dim">{r.branch}</span>
             {r.arrows && <>{'  '}{r.arrows}</>}

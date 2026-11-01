@@ -24,11 +24,14 @@ pub fn root_of(dir: &Path) -> Option<PathBuf> {
     (r.ok && !top.is_empty()).then(|| clean(Path::new(&top)))
 }
 
-fn find_repos(folder: &Path) -> Vec<PathBuf> {
+pub const DEFAULT_DEPTH: usize = 4;
+
+fn find_repos(folder: &Path, max: usize) -> Vec<PathBuf> {
     let above = root_of(folder);
     let mut repos: Vec<PathBuf> = above.iter().cloned().collect();
-    fn walk(dir: &Path, depth: usize, above: &Option<PathBuf>, repos: &mut Vec<PathBuf>) {
+    fn walk(dir: &Path, depth: usize, max: usize, above: &Option<PathBuf>, repos: &mut Vec<PathBuf>) {
         let Ok(entries) = fs::read_dir(dir) else { return };
+        let mut dirs = vec![];
         for e in entries.filter_map(Result::ok) {
             let name = e.file_name();
             if name == ".git" {
@@ -36,12 +39,18 @@ fn find_repos(folder: &Path) -> Vec<PathBuf> {
                 if above.as_ref() != Some(&d) {
                     repos.push(d);
                 }
-            } else if depth < 3 && name != "node_modules" && e.file_type().is_ok_and(|t| t.is_dir()) {
-                walk(&e.path(), depth + 1, above, repos);
+                continue;
+            }
+            let skip = name.to_string_lossy().starts_with('.') || name == "node_modules" || (depth == 0 && name == "Library");
+            if depth < max && !skip && e.file_type().is_ok_and(|t| t.is_dir()) {
+                dirs.push(e.path());
             }
         }
+        for d in dirs {
+            walk(&d, depth + 1, max, above, repos);
+        }
     }
-    walk(folder, 0, &above, &mut repos);
+    walk(folder, 0, max, &above, &mut repos);
     repos
 }
 
@@ -217,14 +226,16 @@ fn info_of(repo: &Path, name: &str) -> Info {
 #[derive(Deserialize)]
 pub struct ReposArgs {
     roots: Option<Vec<String>>,
+    depth: Option<usize>,
 }
 
 pub fn repos(a: ReposArgs) -> Vec<Info> {
     let mut all: Vec<(PathBuf, String)> = vec![];
     let mut seen = HashSet::new();
+    let depth = a.depth.unwrap_or(DEFAULT_DEPTH).min(12);
     for r in a.roots.unwrap_or_default() {
         let root = PathBuf::from(&r);
-        for repo in find_repos(&root) {
+        for repo in find_repos(&root, depth) {
             if !seen.insert(repo.clone()) {
                 continue;
             }
