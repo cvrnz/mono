@@ -1,5 +1,4 @@
 import { Button, Spinner } from '@heroui/react'
-import { open } from '@tauri-apps/plugin-dialog'
 import { useCallback, useEffect, useState } from 'react'
 import { errorText, invoke } from '../lib/bridge'
 import { closeProject, connect, forget } from '../lib/connection'
@@ -64,27 +63,10 @@ export default function ConnectScreen() {
     connect(S.dockerTarget(name, folder.trim()))
   }
 
-  const openLocal = (path: string) => {
-    const dir = path.trim()
+  const openLocal = () => {
     if (busy) return
-    if (!dir) {
-      setError('Pick a folder, or type its path.')
-      return
-    }
     setError('')
-    connect(S.localTarget(dir))
-  }
-
-  const browse = async () => {
-    try {
-      const dir = await open({ directory: true, title: 'Open a folder' })
-      if (typeof dir === 'string' && dir) {
-        setLocalFolder(dir)
-        openLocal(dir)
-      }
-    } catch (err) {
-      setError(errorText(err))
-    }
+    connect(S.localTarget(localFolder.trim() || '~'))
   }
 
   const openRecent = async (t: S.Target) => {
@@ -167,22 +149,20 @@ export default function ConnectScreen() {
         )}
 
         <h2>This computer</h2>
+        <div className="label">Folder</div>
         <div className="row-fields">
           <div className="field">
             <input
               className="text-input"
-              placeholder="A folder's path, or choose one"
+              placeholder="Default: your home folder (~)"
               value={localFolder}
               spellCheck={false}
               onChange={(e) => setLocalFolder(e.target.value)}
-              onKeyDown={onEnter(() => openLocal(localFolder))}
+              onKeyDown={onEnter(openLocal)}
             />
           </div>
-          <Button variant="secondary" isDisabled={busy} onPress={browse}>
-            Choose…
-          </Button>
-          <Button variant="primary" isDisabled={busy || !localFolder.trim()} onPress={() => openLocal(localFolder)}>
-            Open
+          <Button variant="primary" isDisabled={busy} onPress={openLocal}>
+            Connect
           </Button>
         </div>
 

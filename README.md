@@ -8,8 +8,8 @@ databases.
 
 ## Using it
 
-- **This computer**: choose a folder (or type its path) and press **Open**. Terminals run
-  your login shell; source control uses the `git` you have installed.
+- **This computer**: press **Connect** to work in your home folder, or type another folder's
+  path first. Terminals run your login shell; source control uses the `git` you have installed.
 - **A Docker container**: pick a running container from the list (Compose containers show their
   project and service), optionally a folder (the default is the container's working
   directory), and press **Connect**. Monomyth copies a small helper program into the container
@@ -18,6 +18,11 @@ databases.
   arm64 containers. Terminals need a shell in the container and source control needs `git`.
 
 Recent folders and containers are listed at the top.
+
+Once connected, `ChangeDirectory` (or `cd path`) moves the project to another folder: on this
+computer it opens a folder picker, in a container it asks for a path (relative paths start from
+the current folder). New terminals open there, the Explorer shows it, and the Git tab looks for
+repos under it.
 
 Shortcuts use Cmd on macOS and Ctrl elsewhere:
 
@@ -64,7 +69,7 @@ move through the output and scrollback, `v`/`V` select, `y` copies (`yy` the lin
 the shell.
 
 The command palette runs the app's commands (`Themes`, `ToggleLineNumbers`, `ToggleVim`,
-`FontSize 15`, `MaxColumns 100`, `GitDepth 6`, `Reconnect`, `NewProject`, `Disconnect`, ...) and, in a file with Vim
+`FontSize 15`, `MaxColumns 100`, `ChangeDirectory`, `GitDepth 6`, `Reconnect`, `NewProject`, `Disconnect`, ...) and, in a file with Vim
 keybindings, any Ex command (`w`, `e path`, `%s/a/b/g`, `10`, `sort`; `:` in the file opens Vim's own
 prompt for those too). Tab completes the highlighted command.
 

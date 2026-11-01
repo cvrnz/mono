@@ -1,6 +1,6 @@
 import * as A from './actions'
 import { errorText } from './bridge'
-import { disconnect, newProject, reconnect } from './connection'
+import { changeDirectory, disconnect, newProject, reconnect } from './connection'
 import { prompt, toast } from './dialogs'
 import { pane } from './panes'
 import { addThemeRepo, loadUserThemes, removeThemeRepo, updateSettings, updateThemeRepos } from './settings'
@@ -89,6 +89,12 @@ export const commands: Command[] = [
       updateSettings({ vim })
       toast(vim ? 'Vim keybindings on' : 'Vim keybindings off')
     },
+  },
+  {
+    name: 'ChangeDirectory',
+    desc: 'Work in a different folder (where terminals open and git looks for repos)',
+    aliases: ['cd', 'ChangeDir'],
+    run: (args) => changeDirectory(args),
   },
   {
     name: 'GitDepth',
