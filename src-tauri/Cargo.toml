@@ -1,0 +1,25 @@
+[package]
+name = "monomyth"
+version.workspace = true
+edition.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+monomyth-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tokio = { version = "1", features = ["process", "io-util", "sync", "time", "net", "macros", "rt-multi-thread"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+futures-util = "0.3"
+tokio-postgres = "0.7"
+postgres-native-tls = "0.5"
+native-tls = "0.2"
+mysql_async = { version = "0.37", default-features = false, features = ["minimal", "native-tls-tls"] }
+tiberius = { version = "0.12", default-features = false, features = ["tds73", "native-tls", "chrono"] }
+chrono = { version = "0.4", default-features = false, features = ["std"] }
+rusqlite = { version = "0.37", features = ["bundled"] }

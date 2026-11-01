@@ -1,0 +1,40 @@
+{
+  "name": "monomyth",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --bun vite",
+    "build": "tsc -b && bun --bun vite build",
+    "lint": "oxlint",
+    "agent": "sh scripts/build-agent.sh",
+    "tauri": "tauri",
+    "app": "tauri dev",
+    "bundle": "tauri build"
+  },
+  "dependencies": {
+    "@heroui/react": "^3.2.6",
+    "@heroui/styles": "^3.2.6",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
+    "monaco-editor": "^0.57.0",
+    "monaco-vim": "^0.4.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@tauri-apps/cli": "^2",
+    "@types/bun": "^1.4.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "oxlint": "^1.89.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.5"
+  }
+}

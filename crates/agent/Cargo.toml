@@ -1,0 +1,8 @@
+[package]
+name = "monomyth-agent"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+monomyth-core.workspace = true
+serde_json.workspace = true
