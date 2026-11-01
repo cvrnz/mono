@@ -117,6 +117,16 @@ selected tab, `selection` selected text, `fg` text, `dim` comments and muted tex
 color code (`orange` numbers and constants, `purple` keywords, `blue` functions, `green`
 strings, `cyan` types). The folder can be a link to one kept elsewhere, like a dotfiles repo.
 
+Themes can also come from GitHub, the way Neovim plugin managers fetch them. `themeRepos` in
+the settings lists them as `owner/repo`; each is cloned into the themes folder the first time
+the app starts with it, and the JSON files at the top of the repo become themes. The list
+starts with `cvrnz/monomyth-dark-theme`, which holds the default theme, `monomyth-dark`
+(until it's downloaded, or without a connection, `onedark` is used instead).
+
+- `AddTheme owner/repo` downloads a theme repo and adds it to the list (a full git URL works too).
+- `RemoveTheme owner/repo` deletes it and takes it off the list.
+- `UpdateThemes` pulls the latest version of every theme repo.
+
 If the connection drops, the app reconnects once by itself and otherwise shows a Reconnect
 button; open files and unsaved changes stay, and terminals start a new shell when typed in.
 

@@ -1,4 +1,4 @@
-import { invoke } from './bridge'
+import { errorText, invoke } from './bridge'
 import { toast } from './dialogs'
 import { monaco } from './monaco'
 import * as S from './store'
@@ -14,6 +14,49 @@ export async function loadSettings() {
   S.set({ platform, settings: { ...S.defaultSettings, ...saved } })
   document.documentElement.dataset.platform = platform
   await loadUserThemes()
+  void installThemes()
+}
+
+async function installThemes() {
+  let added = false
+  for (const repo of S.get().settings.themeRepos) {
+    try {
+      if (await invoke<boolean>('theme_install', { repo })) added = true
+    } catch (e) {
+      toast(errorText(e), 'error')
+    }
+  }
+  if (added) await loadUserThemes()
+}
+
+export async function addThemeRepo(repo: string) {
+  repo = repo.trim().replace(/^https:\/\/github\.com\//, '').replace(/\/$/, '')
+  const repos = S.get().settings.themeRepos
+  if (repos.includes(repo)) {
+    await updateThemeRepos([repo])
+    return
+  }
+  await invoke('theme_install', { repo })
+  await updateSettings({ themeRepos: [...repos, repo] })
+  await loadUserThemes()
+  toast(`Added ${repo}`)
+}
+
+export async function removeThemeRepo(repo: string) {
+  await invoke('theme_remove', { repo })
+  await updateSettings({ themeRepos: S.get().settings.themeRepos.filter((r) => r !== repo) })
+  await loadUserThemes()
+  toast(`Removed ${repo}`)
+}
+
+export async function updateThemeRepos(repos = S.get().settings.themeRepos) {
+  const failed: string[] = []
+  for (const repo of repos) {
+    await invoke('theme_update', { repo }).catch((e) => failed.push(errorText(e)))
+  }
+  await loadUserThemes()
+  if (failed.length) toast(failed.join('\n'), 'error')
+  else toast(repos.length === 1 ? `Updated ${repos[0]}` : `Updated ${repos.length} themes`)
 }
 
 export function updateSettings(patch: Partial<S.Settings>): Promise<void> {

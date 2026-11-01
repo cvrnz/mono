@@ -3,6 +3,7 @@
 mod docker;
 mod shell;
 mod sql;
+mod theme_repos;
 
 use monomyth_core::Service;
 use serde::Deserialize;
@@ -91,18 +92,71 @@ fn save_settings(app: AppHandle, data: String) -> Result<(), String> {
 
 #[tauri::command]
 fn themes(app: AppHandle) -> Vec<Value> {
-    let dir = config_dir(&app).join("themes");
-    let Ok(entries) = std::fs::read_dir(&dir) else { return vec![] };
-    let mut files: Vec<String> = entries
-        .filter_map(Result::ok)
-        .map(|e| e.file_name().to_string_lossy().into_owned())
-        .filter(|n| n.to_lowercase().ends_with(".json"))
-        .collect();
-    files.sort();
-    files
+    theme_files(&config_dir(&app).join("themes")).into_iter().map(|(file, text)| json!({ "file": file, "text": text })).collect()
+}
+
+#[tauri::command]
+async fn theme_install(app: AppHandle, repo: String) -> Result<bool, String> {
+    theme_repos::install(&config_dir(&app).join("themes"), &repo).await
+}
+
+#[tauri::command]
+async fn theme_update(app: AppHandle, repo: String) -> Result<(), String> {
+    theme_repos::update(&config_dir(&app).join("themes"), &repo).await
+}
+
+#[tauri::command]
+async fn theme_remove(app: AppHandle, repo: String) -> Result<(), String> {
+    theme_repos::remove(&config_dir(&app).join("themes"), &repo).await
+}
+
+fn theme_files(dir: &std::path::Path) -> Vec<(String, String)> {
+    let Ok(entries) = std::fs::read_dir(dir) else { return vec![] };
+    let mut found: Vec<(String, PathBuf)> = vec![];
+    for entry in entries.filter_map(Result::ok) {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let path = entry.path();
+        if name.starts_with('.') {
+            continue;
+        }
+        if path.is_dir() {
+            let Ok(inner) = std::fs::read_dir(&path) else { continue };
+            for file in inner.filter_map(Result::ok) {
+                let inner_name = file.file_name().to_string_lossy().into_owned();
+                if inner_name.to_lowercase().ends_with(".json") && file.path().is_file() {
+                    found.push((format!("{name}/{inner_name}"), file.path()));
+                }
+            }
+        } else if name.to_lowercase().ends_with(".json") {
+            found.push((name, path));
+        }
+    }
+    found.sort();
+    found
         .into_iter()
-        .filter_map(|file| std::fs::read_to_string(dir.join(&file)).ok().filter(|t| !t.is_empty()).map(|text| json!({ "file": file, "text": text })))
+        .filter_map(|(shown, path)| {
+            let text = std::fs::read_to_string(path).ok().filter(|t| !t.is_empty())?;
+            let file = shown.rsplit('/').next().unwrap_or(&shown).to_string();
+            Some((file, text))
+        })
         .collect()
+}
+
+#[cfg(test)]
+mod theme_tests {
+    #[test]
+    fn reads_themes_and_cloned_theme_repos() {
+        let dir = std::env::temp_dir().join(format!("monomyth-themes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("monomyth-dark/.git")).unwrap();
+        std::fs::write(dir.join("mine.json"), "{}").unwrap();
+        std::fs::write(dir.join("monomyth-dark/monomyth-dark.json"), "{\"name\":\"monomyth-dark\"}").unwrap();
+        std::fs::write(dir.join("monomyth-dark/README.md"), "x").unwrap();
+        std::fs::write(dir.join("monomyth-dark/.git/config.json"), "{}").unwrap();
+        let files: Vec<String> = super::theme_files(&dir).into_iter().map(|(f, _)| f).collect();
+        assert_eq!(files, ["mine.json", "monomyth-dark.json"]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }
 
 #[tauri::command]
@@ -329,6 +383,9 @@ fn main() {
             settings,
             save_settings,
             themes,
+            theme_install,
+            theme_update,
+            theme_remove,
             platform,
             docker_containers,
             connect,

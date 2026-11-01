@@ -1,8 +1,9 @@
 import * as A from './actions'
+import { errorText } from './bridge'
 import { disconnect, newProject, reconnect } from './connection'
 import { prompt, toast } from './dialogs'
 import { pane } from './panes'
-import { loadUserThemes, updateSettings } from './settings'
+import { addThemeRepo, loadUserThemes, removeThemeRepo, updateSettings, updateThemeRepos } from './settings'
 import * as S from './store'
 
 export type Command = {
@@ -35,8 +36,46 @@ function setNumber(name: string, key: 'maxColumns' | 'fontSize', min: number, ma
   }
 }
 
+async function themeRepo(args: string, title: string, message?: string) {
+  const text = args.trim() || ((await prompt(title, '', message)) ?? '').trim()
+  return text || null
+}
+
+function reportError(e: unknown) {
+  toast(errorText(e), 'error')
+}
+
 export const commands: Command[] = [
   { name: 'Themes', desc: 'Pick a theme', run: () => loadUserThemes().then(() => S.set({ palette: { mode: 'themes' } })) },
+  {
+    name: 'AddTheme',
+    desc: 'Download a theme from GitHub (owner/repo)',
+    aliases: ['InstallTheme'],
+    run: async (args) => {
+      const repo = await themeRepo(args, 'Add theme', 'A GitHub repo with theme .json files, like cvrnz/monomyth-dark-theme')
+      if (repo) await addThemeRepo(repo).catch(reportError)
+    },
+  },
+  {
+    name: 'RemoveTheme',
+    desc: 'Delete a downloaded theme',
+    aliases: ['DeleteTheme', 'UninstallTheme'],
+    run: async (args) => {
+      const repos = S.get().settings.themeRepos
+      if (!repos.length) {
+        toast('No downloaded themes')
+        return
+      }
+      const repo = await themeRepo(args, 'Remove theme', repos.join(', '))
+      if (!repo) return
+      if (!repos.includes(repo)) {
+        toast(`${repo} isn't one of your themes (${repos.join(', ')})`, 'error')
+        return
+      }
+      await removeThemeRepo(repo).catch(reportError)
+    },
+  },
+  { name: 'UpdateThemes', desc: 'Download the latest version of every theme', run: () => updateThemeRepos() },
   {
     name: 'ToggleLineNumbers',
     desc: 'Show or hide line numbers in files and diffs',

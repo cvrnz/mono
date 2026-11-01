@@ -13,6 +13,7 @@ export function dockerTarget(container: string, folder: string): Target {
 
 export type Settings = {
   theme: string
+  themeRepos: string[]
   vim: boolean
   lineNumbers: boolean
   maxColumns: number
@@ -38,7 +39,8 @@ export type SavedProject = { target: Target; tabs: SavedTab[]; active: number }
 export type SavedSession = { projects: SavedProject[]; current: number }
 
 export const defaultSettings: Settings = {
-  theme: 'onedark',
+  theme: 'monomyth-dark',
+  themeRepos: ['cvrnz/monomyth-dark-theme'],
   vim: true,
   lineNumbers: true,
   maxColumns: 120,
