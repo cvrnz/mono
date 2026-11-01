@@ -95,26 +95,45 @@ export function splitTerminal(dir: S.Splits['dir']) {
 
 const back = new Map<string, string>()
 
-function toggleFixed(kind: 'explorer' | 'scm') {
+function toggleFixed(kind: S.FixedKind) {
   const s = S.get()
   const target = s.tabs.find((t) => t.kind === kind)
   if (!target) return
-  S.set({ palette: null, search: null })
-  const key = `${s.project}:${kind}`
   if (s.active === target.id) {
-    const prev = s.tabs.find((t) => t.id === back.get(key) && t.id !== target.id) ?? s.tabs.find((t) => !S.isFixed(t))
-    if (prev) activate(prev.id)
-    else focusActive()
+    S.set({ palette: null })
+    leaveFixed(target)
     return
   }
-  if (s.active) back.set(key, s.active)
+  showFixed(target)
+}
+
+function showFixed(target: S.Tab) {
+  const s = S.get()
+  S.set({ palette: null })
+  if (s.active !== target.id && s.active) back.set(`${s.project}:${target.kind}`, s.active)
   const current = S.activeTab()
-  if (kind === 'explorer' && current?.kind === 'file' && current.path) S.updateTab(target.id, { reveal: current.path })
+  if (target.kind === 'explorer' && current?.kind === 'file' && current.path) S.updateTab(target.id, { reveal: current.path })
   activate(target.id)
+}
+
+export function leaveFixed(target: S.Tab) {
+  const s = S.get()
+  const prev = s.tabs.find((t) => t.id === back.get(`${s.project}:${target.kind}`) && t.id !== target.id) ?? s.tabs.find((t) => !S.isFixed(t))
+  if (prev) activate(prev.id)
+  else focusActive()
 }
 
 export const openExplorer = () => toggleFixed('explorer')
 export const openScm = () => toggleFixed('scm')
+export const toggleSearch = () => toggleFixed('search')
+
+let asks = 0
+export function openSearch(kind: S.SearchKind, text = '') {
+  const target = S.get().tabs.find((t) => t.kind === 'search')
+  if (!target) return
+  S.updateTab(target.id, { ask: { kind, text, n: ++asks } })
+  showFixed(target)
+}
 
 export function openSql(conn?: string) {
   insertTab({ id: S.newId(), kind: 'sql', conn })

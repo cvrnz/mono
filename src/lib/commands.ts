@@ -97,6 +97,16 @@ export const commands: Command[] = [
     run: (args) => changeDirectory(args),
   },
   {
+    name: 'TabIcons',
+    desc: 'Show the Explorer, Git and Search tabs as icons or as text',
+    aliases: ['ToggleTabIcons'],
+    run: () => {
+      const tabIcons = !S.get().settings.tabIcons
+      updateSettings({ tabIcons })
+      toast(tabIcons ? 'Explorer, Git and Search tabs show icons' : 'Explorer, Git and Search tabs show text')
+    },
+  },
+  {
     name: 'GitDepth',
     desc: 'How many folders deep the git tab looks for repos (default 4)',
     run: setNumber('Git depth', 'gitDepth', 0, 12),
@@ -111,16 +121,16 @@ export const commands: Command[] = [
   },
   {
     name: 'Search',
-    desc: 'Search file names',
+    desc: 'Search file names (and back)',
     keys: 'F',
     aliases: ['Files', 'Find'],
-    run: (args) => S.set({ search: { kind: 'files', text: args.trim() }, palette: null }),
+    run: (args) => (args.trim() ? A.openSearch('files', args.trim()) : A.toggleSearch()),
   },
   {
     name: 'Grep',
     desc: 'Search text in files',
     aliases: ['SearchText'],
-    run: (args) => S.set({ search: { kind: 'text', text: args.trim() }, palette: null }),
+    run: (args) => A.openSearch('text', args.trim()),
   },
   { name: 'Git', desc: 'Source control (and back)', keys: 'G', aliases: ['SourceControl'], run: () => A.openScm() },
   { name: 'Terminal', desc: 'Terminal in new tab', keys: 'T', aliases: ['terminal', 'term'], run: () => A.openTerminal() },

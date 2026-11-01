@@ -73,8 +73,8 @@ export function restoredTabs(id: string, target: S.Target): Pick<S.Project, 'tab
   if (!sameTarget(saved.target, target) || saved.tabs.length === 0) return null
   const opened = saved.tabs.map(openTab)
   const tabs = S.withFixed(opened)
-  const active = opened[saved.active] ?? tabs[2]
-  return { tabs, active: tabs.includes(active) ? active.id : tabs[2].id }
+  const active = opened[saved.active]
+  return { tabs, active: active && tabs.includes(active) ? active.id : S.firstOwnTab(tabs).id }
 }
 
 let last = ''

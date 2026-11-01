@@ -23,7 +23,8 @@ export type Settings = {
   dockerPath?: string
   recents: Target[]
   sqlConnections?: SqlConnection[]
-  sideWidths?: { explorer?: number; git?: number; sql?: number }
+  sideWidths?: { explorer?: number; git?: number; sql?: number; search?: number }
+  tabIcons?: boolean
   session?: SavedSession
 }
 
@@ -33,6 +34,7 @@ export type SavedTab = (
   | { kind: 'scm' }
   | { kind: 'welcome' }
   | { kind: 'explorer' }
+  | { kind: 'search' }
   | { kind: 'sql'; conn?: string; text?: string }
 ) & { splits?: { dir: Splits['dir']; count: number } }
 
@@ -75,17 +77,25 @@ export type ScmTab = TabBase & { kind: 'scm' }
 export type WelcomeTab = TabBase & { kind: 'welcome' }
 export type ExplorerTab = TabBase & { kind: 'explorer'; reveal?: string }
 export type SqlTab = TabBase & { kind: 'sql'; conn?: string; text?: string }
-export type Tab = FileTab | TerminalTab | ScmTab | WelcomeTab | ExplorerTab | SqlTab
+export type SearchKind = 'files' | 'text'
+export type SearchTab = TabBase & { kind: 'search'; ask?: { kind: SearchKind; text: string; n: number } }
+export type Tab = FileTab | TerminalTab | ScmTab | WelcomeTab | ExplorerTab | SqlTab | SearchTab
+
+export const fixedKinds = ['explorer', 'scm', 'search'] as const
+export type FixedKind = (typeof fixedKinds)[number]
 
 export function isFixed(t: Tab): boolean {
-  return t.kind === 'explorer' || t.kind === 'scm'
+  return (fixedKinds as readonly string[]).includes(t.kind)
 }
 
 export function withFixed(tabs: Tab[]): Tab[] {
-  const explorer = tabs.find((t) => t.kind === 'explorer') ?? { id: newId(), kind: 'explorer' }
-  const git = tabs.find((t) => t.kind === 'scm') ?? { id: newId(), kind: 'scm' }
+  const fixed = fixedKinds.map((kind) => tabs.find((t) => t.kind === kind) ?? ({ id: newId(), kind } as Tab))
   const rest = tabs.filter((t) => !isFixed(t))
-  return [explorer, git, ...(rest.length ? rest : [{ id: newId(), kind: 'welcome' } as WelcomeTab])]
+  return [...fixed, ...(rest.length ? rest : [{ id: newId(), kind: 'welcome' } as WelcomeTab])]
+}
+
+export function firstOwnTab(tabs: Tab[]): Tab {
+  return tabs.find((t) => !isFixed(t)) ?? tabs[0]
 }
 
 export type Connection =
@@ -120,10 +130,10 @@ export type State = {
   tabs: Tab[]
   active: string | null
   palette: null | { mode: 'commands' | 'themes'; text?: string }
-  search: null | { kind: 'files' | 'text'; text: string }
   status: Record<string, PaneStatus>
   previewTheme: string | null
   session: number
+  draggingTab: string | null
 }
 
 const first = blankProject('w0')
@@ -137,10 +147,10 @@ let state: State = {
   tabs: [],
   active: null,
   palette: null,
-  search: null,
   status: {},
   previewTheme: null,
   session: 0,
+  draggingTab: null,
 }
 
 const listeners = new Set<() => void>()
@@ -206,7 +216,7 @@ export function projectOfTab(id: string): string | undefined {
 export function switchProject(id: string) {
   const p = project(id)
   if (!p || id === state.project) return
-  set({ project: id, conn: p.conn, tabs: p.tabs, active: p.active, session: p.session, palette: null, search: null })
+  set({ project: id, conn: p.conn, tabs: p.tabs, active: p.active, session: p.session, palette: null })
 }
 
 export function addProject(): string {
@@ -221,7 +231,7 @@ export function removeProject(id: string) {
   if (i < 0) return
   if (state.projects.length === 1) {
     const p = blankProject(newId('w'))
-    set({ projects: [p], project: p.id, ...fieldsOf(p), palette: null, search: null, status: {} })
+    set({ projects: [p], project: p.id, ...fieldsOf(p), palette: null, status: {} })
     return
   }
   if (id === state.project) switchProject(state.projects[i === 0 ? 1 : i - 1].id)

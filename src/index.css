@@ -71,6 +71,30 @@ body,
   color: var(--dim);
   font-weight: normal;
 }
+.tab-divider {
+  flex: none;
+  width: 1px;
+  height: 14px;
+  margin: auto 6px;
+  background: color-mix(in srgb, var(--dim) 60%, transparent);
+}
+.tab.dragging {
+  outline: 1px solid var(--border);
+}
+.dragging-tab,
+.dragging-tab * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+.tab.icon {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+}
+.tab-icon {
+  width: 1.05em;
+  height: 1.05em;
+}
 .tab:not(.active):hover {
   color: var(--fg);
   background: color-mix(in srgb, var(--raised) 60%, transparent);
@@ -332,6 +356,43 @@ body,
 }
 .explorer-tree .row.selected {
   background: var(--raised);
+}
+.explorer-tree .row.moving {
+  opacity: 0.55;
+}
+.explorer-tree .row.drop {
+  background: color-mix(in srgb, var(--blue) 22%, transparent);
+  box-shadow: inset 2px 0 var(--blue);
+}
+.explorer-tree .drop-label {
+  color: var(--blue);
+}
+.drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 50;
+  pointer-events: none;
+  padding: 0 1.2ch 0 0.6ch;
+  height: var(--row);
+  line-height: var(--row);
+  white-space: pre;
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  font-family: var(--mono);
+}
+.drag-ghost .icon {
+  color: var(--dim);
+}
+.drag-ghost .dir {
+  color: var(--blue);
+}
+.dragging-file,
+.dragging-file * {
+  cursor: grabbing !important;
+  user-select: none;
 }
 .explorer-tree .icon {
   color: var(--dim);
@@ -821,6 +882,33 @@ body,
   border-color: var(--blue);
 }
 
+.search .prompt {
+  padding: 4px 1ch 6px;
+}
+.search .results {
+  flex: none;
+  width: 45%;
+}
+.search-kinds {
+  display: flex;
+  gap: 2px;
+  color: var(--dim);
+}
+.search-kinds span {
+  padding: 0 1ch;
+  border-radius: 4px;
+  cursor: default;
+}
+.search-kinds span.on {
+  color: var(--fg);
+  background: var(--raised);
+}
+.search-kinds span:not(.on):hover {
+  color: var(--fg);
+}
+.search .prompt input::placeholder {
+  color: var(--dim);
+}
 .search-hit-line {
   background: var(--raised);
 }

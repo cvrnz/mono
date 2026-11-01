@@ -10,7 +10,7 @@ const bindings: Binding[] = [
   { code: 'KeyS', run: () => A.save() },
   { code: 'KeyN', run: () => A.newTab() },
   { code: 'KeyP', run: () => openPalette() },
-  { code: 'KeyF', run: () => openSearch() },
+  { code: 'KeyF', run: () => A.toggleSearch() },
   { code: 'KeyG', run: () => A.openScm() },
   { code: 'KeyE', run: () => A.openExplorer() },
   { code: 'KeyT', run: () => A.openTerminal() },
@@ -26,14 +26,8 @@ const bindings: Binding[] = [
 
 function openPalette() {
   const s = S.get()
-  S.set({ palette: s.palette ? null : { mode: 'commands' }, previewTheme: null, search: null })
+  S.set({ palette: s.palette ? null : { mode: 'commands' }, previewTheme: null })
   if (s.palette) A.focusActive()
-}
-
-function openSearch() {
-  const s = S.get()
-  S.set({ search: s.search ? null : { kind: 'files', text: '' }, palette: null })
-  if (s.search) A.focusActive()
 }
 
 function inTerminal(target: EventTarget | null) {
@@ -46,10 +40,10 @@ function onKeyDown(e: KeyboardEvent) {
   if (isDialogOpen() || e.altKey) return
   if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
     const s = S.get()
-    if (s.search || s.palette) {
+    if (s.palette) {
       e.preventDefault()
       e.stopPropagation()
-      S.set({ search: null, palette: null, previewTheme: null })
+      S.set({ palette: null, previewTheme: null })
       A.focusActive()
     }
     return

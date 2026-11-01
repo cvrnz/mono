@@ -1,5 +1,5 @@
 import { Button } from '@heroui/react'
-import type { CSSProperties, ReactNode } from 'react'
+import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import * as A from '../lib/actions'
 import { disconnect, newProject, reconnect } from '../lib/connection'
 import { keyLabel } from '../lib/commands'
@@ -11,8 +11,9 @@ import EditorPane from './EditorPane'
 import Explorer from './Explorer'
 import ScmPane from './ScmPane'
 import SqlPane from './SqlPane'
-import SearchModal from './SearchModal'
+import SearchPane from './SearchPane'
 import TerminalPane from './TerminalPane'
+import TabIcon from './TabIcon'
 import Welcome from './Welcome'
 import { noDrag, windowDrag, windowMenu } from '../lib/window'
 
@@ -29,6 +30,8 @@ export function tabLabel(tab: S.Tab): string {
       return tab.path ? basename(tab.path) : 'Untitled'
     case 'explorer':
       return 'Explorer'
+    case 'search':
+      return 'Search'
     case 'sql':
       return tab.conn ? `SQL: ${tab.conn}` : 'SQL'
   }
@@ -96,30 +99,77 @@ function ProjectBar() {
   )
 }
 
+function dragTab(e: React.MouseEvent, id: string) {
+  const bar = (e.currentTarget as HTMLElement).parentElement
+  if (!bar) return
+  const x = e.clientX
+  let started = false
+  const onMove = (ev: MouseEvent) => {
+    if (!started) {
+      if (Math.abs(ev.clientX - x) < 5) return
+      started = true
+      document.body.classList.add('dragging-tab')
+      S.set({ draggingTab: id })
+    }
+    const over = [...bar.querySelectorAll<HTMLElement>('.tab[data-id]')].find((el) => {
+      const r = el.getBoundingClientRect()
+      return ev.clientX >= r.left && ev.clientX < r.right
+    })
+    const target = over?.dataset.id
+    if (!target || target === id) return
+    S.set((s) => {
+      const to = s.tabs.findIndex((t) => t.id === target)
+      if (to < 0 || S.isFixed(s.tabs[to])) return {}
+      const tabs = s.tabs.filter((t) => t.id !== id)
+      tabs.splice(to, 0, s.tabs.find((t) => t.id === id)!)
+      return { tabs }
+    })
+  }
+  const onUp = () => {
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+    document.body.classList.remove('dragging-tab')
+    if (started) S.set({ draggingTab: null })
+  }
+  window.addEventListener('mousemove', onMove)
+  window.addEventListener('mouseup', onUp)
+}
+
 function TabBar() {
   const tabs = S.useStore((s) => s.tabs)
+  const dragging = S.useStore((s) => s.draggingTab)
   const active = S.useStore((s) => s.active)
+  const icons = S.useStore((s) => Boolean(s.settings.tabIcons))
   return (
     <div className="tabbar">
-      {tabs.map((t) => (
-        <div
-          key={t.id}
-          className={`tab ${noDrag} ${t.id === active ? 'active' : ''}`}
-          title={t.kind === 'file' && t.path ? t.path : undefined}
-          onMouseDown={(e) => {
-            if (e.button === 1) {
-              e.preventDefault()
-              A.closeTab(t.id)
-            } else if (e.button === 0) {
-              e.preventDefault()
-              A.activate(t.id)
-            }
-          }}
-        >
-          {tabLabel(t)}
-          {t.kind === 'file' && t.dirty && <span className="dot"> ●</span>}
-        </div>
-      ))}
+      {tabs.map((t, i) => {
+        const fixed = S.isFixed(t)
+        const icon = icons && fixed
+        const lastFixed = fixed && !(tabs[i + 1] && S.isFixed(tabs[i + 1]))
+        return (
+          <Fragment key={t.id}>
+            <div
+              data-id={fixed ? undefined : t.id}
+              className={`tab ${noDrag} ${t.id === active ? 'active' : ''} ${icon ? 'icon' : ''} ${t.id === dragging ? 'dragging' : ''}`}
+              title={t.kind === 'file' && t.path ? t.path : icon ? tabLabel(t) : undefined}
+              onMouseDown={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault()
+                  A.closeTab(t.id)
+                } else if (e.button === 0) {
+                  e.preventDefault()
+                  A.activate(t.id)
+                  if (!fixed) dragTab(e, t.id)
+                }
+              }}
+            >
+              {icon ? <TabIcon kind={t.kind as S.FixedKind} /> : tabLabel(t)}
+              {t.kind === 'file' && t.dirty && <span className="dot"> ●</span>}
+            </div>
+            {lastFixed && <div className="tab-divider" />}
+          </Fragment>
+        )
+      })}
     </div>
   )
 }
@@ -198,6 +248,8 @@ function content(tab: S.Tab, active: boolean, centered: boolean): ReactNode {
       return <Explorer tab={tab} active={active} />
     case 'sql':
       return <SqlPane tab={tab} active={active} />
+    case 'search':
+      return <SearchPane tab={tab} active={active} />
   }
 }
 
@@ -250,7 +302,6 @@ function Panes() {
 
 export default function Workspace() {
   const palette = S.useStore((s) => s.palette)
-  const search = S.useStore((s) => s.search)
   const connected = S.useStore((s) => S.isConnected(s.conn))
   return (
     <div className="workspace">
@@ -263,7 +314,6 @@ export default function Workspace() {
       {connected && <StatusBar />}
       <LostBanner />
       {connected && palette && <CommandPalette mode={palette.mode} initial={palette.text ?? ''} />}
-      {connected && search && <SearchModal kind={search.kind} initial={search.text} />}
     </div>
   )
 }

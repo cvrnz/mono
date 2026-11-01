@@ -28,11 +28,11 @@ Shortcuts use Cmd on macOS and Ctrl elsewhere:
 
 | Shortcut | Action |
 |----------|--------|
-| W | Close the tab or split (asks about unsaved changes; the Explorer and Git tabs stay, and closing the last other tab leaves a welcome screen) |
+| W | Close the tab or split (asks about unsaved changes; the Explorer, Git and Search tabs stay, and closing the last other tab leaves a welcome screen) |
 | S | Save (asks for a path for a new file) |
 | N | New tab |
 | P | Command palette |
-| F | Search file names; Tab switches to searching text |
+| F | Search file names; Tab switches to searching text; again to go back to the tab you were on |
 | G | Git (source control); again to go back to the tab you were on |
 | E | File explorer; again to go back to the tab you were on |
 | T | Terminal in a new tab |
@@ -40,7 +40,7 @@ Shortcuts use Cmd on macOS and Ctrl elsewhere:
 | \\ | Terminal split below |
 | Shift+\\ | Terminal split to the right |
 | H / L | Previous / next tab |
-| J / K | Next / previous pane: the parts of Explorer, Git and SQL (sidebar, editor, results), then splits |
+| J / K | Next / previous pane: the parts of Explorer, Git, Search and SQL (sidebar, editor, results), then splits |
 | 1 … 9 | Switch to the first … ninth project |
 
 Several projects (folders or containers) can be open in one window, each with its own
@@ -50,16 +50,16 @@ Cmd+1, Cmd+2, ... switch between them.
 
 Mono opens where you left off: the projects that were open reconnect, and their tabs come
 back once connected (files at the same cursor, terminals, source control, the explorer, SQL
-tabs with their query and connection, splits, the current tab and project). Unsaved changes and untitled files aren't kept, and terminals start new
+the search tab, SQL tabs with their query and connection, splits, the current tab and project). Unsaved changes and untitled files aren't kept, and terminals start new
 shells. If a project can't reconnect, its connect screen shows why, and its tabs come back
 when you connect it to the same place. This is saved as `session` in the settings file.
 
-The Explorer, Git and SQL tabs show a line of hints at the bottom: the keys for the part that
+The Explorer, Git, Search and SQL tabs show a line of hints at the bottom: the keys for the part that
 has the focus (the sidebar, the query, the results, ...) and how to move to the next part.
 Their sidebars can be resized by dragging the line beside them (double-click it for the default
 width); the widths are kept as `sideWidths` in the settings file.
 
-Shortcuts work everywhere, Vim's insert mode and terminals included. Esc closes search and the command
+Shortcuts work everywhere, Vim's insert mode and terminals included. Esc closes the command
 palette wherever the focus is. Selecting text in a terminal copies it.
 
 In a terminal, Esc Esc switches to normal mode, as in nvim (a single Esc still goes to the
@@ -73,15 +73,23 @@ The command palette runs the app's commands (`Themes`, `ToggleLineNumbers`, `Tog
 keybindings, any Ex command (`w`, `e path`, `%s/a/b/g`, `10`, `sort`; `:` in the file opens Vim's own
 prompt for those too). Tab completes the highlighted command.
 
-Every project's first two tabs are Explorer and Git, which can't be closed; the tabs you open
-come after them.
+Every project's first three tabs are Explorer, Git and Search, which can't be closed; the tabs
+you open come after them, past a divider; drag those tabs to reorder them. `TabIcons` shows those three as icons instead of names (`tabIcons`
+in the settings file).
 
 - **Explorer** (Cmd+E, again to go back): the folder's tree and a preview of the selected
   file, showing the file that was open. `j`/`k` move, `l`/Enter open or expand, `h` collapse,
   `a` new file (end with `/` for a folder), `r` rename or move, `d` delete, `y` copy the path,
-  `R` refresh. Files open in a tab of their own. Files with uncommitted changes show in their Git
+  `R` refresh. To move a file or folder, press `m` on it, pick the folder with the arrow keys
+  (or `j`/`k`, `l`/`h` to expand and collapse) and press Enter, or Esc to cancel; or drag it
+  onto a folder with the mouse (holding it over a closed folder opens it). Cmd+Z undoes a move or
+  rename and Cmd+Shift+Z redoes it. Files open in a tab of their own. Files with uncommitted changes show in their Git
   status's color and letter (`M` modified, `U` untracked, `A` added, `R` renamed), and folders
   holding any with a dot.
+- **Search** (Cmd+F, again to go back): fuzzy search of file names, or of text inside files
+  (Tab switches, or click Files / Text), with a preview of the selected result. ↑/↓ or
+  Ctrl+J/K move, Enter opens the file at the match, Esc goes back. The `Search` and `Grep`
+  commands take what to search for (`Grep TODO`). The query stays when you leave the tab.
 - **SQL** (Cmd+D, the `Sql` command, or `Sql <saved connection>`): a tab connected to a PostgreSQL,
   MySQL/MariaDB, SQL Server or SQLite database. Queries run from this computer (not in the
   container). The left lists the saved connections

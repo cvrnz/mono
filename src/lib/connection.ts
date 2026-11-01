@@ -62,7 +62,7 @@ export async function connect(target: S.Target, id = S.get().project) {
       if (id === S.get().project) focusActive()
     } else if (S.project(id)!.tabs.length === 0) {
       const tabs = S.withFixed([])
-      S.setProject(id, { tabs, active: tabs[2].id })
+      S.setProject(id, { tabs, active: S.firstOwnTab(tabs).id })
       if (id === S.get().project) focusActive()
     }
   } catch (err) {
