@@ -1,6 +1,6 @@
-# Monomyth
+# Mono
 
-Monomyth is a desktop editor for folders on your computer and inside the Docker containers
+Mono is a desktop editor for folders on your computer and inside the Docker containers
 running on it. It's built with Tauri: a Rust backend and a React page (Monaco with Vim
 keybindings, xterm.js terminals) in the system's web view. It has an explorer, source control,
 fuzzy file and text search, terminals, a command palette, themes, and SQL tabs for querying
@@ -12,8 +12,8 @@ databases.
   path first. Terminals run your login shell; source control uses the `git` you have installed.
 - **A Docker container**: pick a running container from the list (Compose containers show their
   project and service), optionally a folder (the default is the container's working
-  directory), and press **Connect**. Monomyth copies a small helper program into the container
-  (`/tmp/monomyth-agent-*`) and runs it with `docker exec`; it reads and writes files, searches,
+  directory), and press **Connect**. Mono copies a small helper program into the container
+  (`/tmp/mono-agent-*`) and runs it with `docker exec`; it reads and writes files, searches,
   runs shells and git there. It works with Docker Desktop, OrbStack and Colima, on amd64 and
   arm64 containers. Terminals need a shell in the container and source control needs `git`.
 
@@ -48,7 +48,7 @@ connection, tabs and terminals. They're listed left of the tabs: `+` (or the `Ne
 command) opens another on the connect screen, a middle click or `Disconnect` closes one, and
 Cmd+1, Cmd+2, ... switch between them.
 
-Monomyth opens where you left off: the projects that were open reconnect, and their tabs come
+Mono opens where you left off: the projects that were open reconnect, and their tabs come
 back once connected (files at the same cursor, terminals, source control, the explorer, SQL
 tabs with their query and connection, splits, the current tab and project). Unsaved changes and untitled files aren't kept, and terminals start new
 shells. If a project can't reconnect, its connect screen shows why, and its tabs come back
@@ -102,7 +102,7 @@ come after them.
 
 Settings (theme, Vim on/off, line numbers, font, centered width, the path to `docker`, recent
 connections) are saved in `settings.json` in the app's config folder
-(`~/Library/Application Support/dev.monomyth.app` on macOS, `~/.config/dev.monomyth.app` on Linux).
+(`~/Library/Application Support/dev.mono.app` on macOS, `~/.config/dev.mono.app` on Linux).
 
 Your own themes go in a `themes` folder there, one JSON file each, and are listed first in
 `Themes` (which re-reads the folder each time it opens). The name is the file's unless the
@@ -145,7 +145,7 @@ comes with Rust); `bun run agent` adds the targets if they're missing.
 ```sh
 bun install
 bun run app      # run in development
-bun run bundle   # build Monomyth.app and a .dmg into target/release/bundle
+bun run bundle   # build Mono.app and a .dmg into target/release/bundle
 ```
 
 The app finds `docker`, `git` and your shell's tools through your login shell's PATH, so it
@@ -160,8 +160,8 @@ cargo test --workspace
 ```
 
 Some tests need running services and are skipped without them:
-`MONOMYTH_TEST_CONTAINER=<a running container>` tests the Docker connection, and
-`MONOMYTH_TEST_PG_PORT` / `MONOMYTH_TEST_MYSQL_PORT` test Postgres (user `postgres`) and MySQL
+`MONO_TEST_CONTAINER=<a running container>` tests the Docker connection, and
+`MONO_TEST_PG_PORT` / `MONO_TEST_MYSQL_PORT` test Postgres (user `postgres`) and MySQL
 (user `root`, database `t`) with the password `pw`.
 
 ## Layout

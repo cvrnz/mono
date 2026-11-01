@@ -2,8 +2,8 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 pub fn use_login_path() {
-    let shell = monomyth_core::login_shell();
-    let mark = "__monomyth_path__";
+    let shell = mono_core::login_shell();
+    let mark = "__mono_path__";
     let Ok(mut child) = Command::new(&shell)
         .args(["-ilc", &format!("printf '{mark}%s{mark}' \"$PATH\"")])
         .stdin(Stdio::null())

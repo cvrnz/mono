@@ -1,4 +1,4 @@
-use monomyth_core::Service;
+use mono_core::Service;
 use serde_json::{json, Value};
 use std::io::{BufRead, Write};
 use std::sync::{Arc, Mutex};

@@ -5,7 +5,7 @@ mod shell;
 mod sql;
 mod theme_repos;
 
-use monomyth_core::Service;
+use mono_core::Service;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -50,6 +50,15 @@ fn config_dir(app: &AppHandle) -> PathBuf {
     app.path().app_config_dir().unwrap_or_else(|_| PathBuf::from("."))
 }
 
+// Mono used to be called Monomyth; keep its settings and themes.
+fn move_old_config(app: &AppHandle) {
+    let dir = config_dir(app);
+    let Some(old) = dir.parent().map(|p| p.join("dev.monomyth.app")) else { return };
+    if !dir.exists() && old.is_dir() {
+        let _ = std::fs::rename(old, dir);
+    }
+}
+
 fn settings_path(app: &AppHandle) -> PathBuf {
     config_dir(app).join("settings.json")
 }
@@ -68,7 +77,7 @@ fn docker_path(app: &AppHandle) -> String {
 fn agents_dir(app: &AppHandle) -> PathBuf {
     let bundled = app.path().resource_dir().map(|d| d.join("agent")).ok();
     match bundled {
-        Some(d) if d.join("monomyth-agent-arm64").exists() => d,
+        Some(d) if d.join("mono-agent-arm64").exists() => d,
         _ => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/agent"),
     }
 }
@@ -161,7 +170,7 @@ fn theme_files(dir: &std::path::Path) -> Vec<(String, String)> {
 mod theme_tests {
     #[test]
     fn reads_themes_and_cloned_theme_repos() {
-        let dir = std::env::temp_dir().join(format!("monomyth-themes-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("mono-themes-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("monomyth-dark/.git")).unwrap();
         std::fs::write(dir.join("mine.json"), "{}").unwrap();
@@ -340,10 +349,10 @@ fn quit_now(app: &AppHandle) {
 }
 
 fn menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
-    let quit = MenuItem::with_id(app, "quit", "Quit Monomyth", true, Some("CmdOrCtrl+Q"))?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Mono", true, Some("CmdOrCtrl+Q"))?;
     let app_menu = Submenu::with_items(
         app,
-        "Monomyth",
+        "Mono",
         true,
         &[
             &PredefinedMenuItem::about(app, None, None)?,
@@ -388,6 +397,7 @@ fn main() {
             ask_page(app);
         })
         .setup(|app| {
+            move_old_config(app.handle());
             if let Some(w) = app.get_webview_window("main") {
                 hide_window_buttons(&w);
             }
@@ -428,7 +438,7 @@ fn main() {
             quit,
         ])
         .build(tauri::generate_context!())
-        .expect("couldn't start Monomyth");
+        .expect("couldn't start Mono");
     app.run(|app, e| {
         if let RunEvent::ExitRequested { api, code, .. } = e {
             if code.is_none() && ask_page(app) {

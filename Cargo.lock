@@ -2259,13 +2259,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "monomyth"
+name = "mono"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
  "futures-util",
- "monomyth-core",
+ "mono-core",
  "mysql_async",
  "native-tls",
  "objc2-app-kit",
@@ -2283,15 +2283,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "monomyth-agent"
+name = "mono-agent"
 version = "0.1.0"
 dependencies = [
- "monomyth-core",
+ "mono-core",
  "serde_json",
 ]
 
 [[package]]
-name = "monomyth-core"
+name = "mono-core"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",

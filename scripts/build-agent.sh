@@ -7,6 +7,6 @@ for pair in aarch64:arm64 x86_64:amd64; do
   target="${pair%%:*}-unknown-linux-musl"
   arch="${pair##*:}"
   rustup target list --installed | grep -qx "$target" || rustup target add "$target"
-  cargo build -q -p monomyth-agent --profile agent --target "$target" --target-dir target/agent
-  cp "target/agent/$target/agent/monomyth-agent" "$out/monomyth-agent-$arch"
+  cargo build -q -p mono-agent --profile agent --target "$target" --target-dir target/agent
+  cp "target/agent/$target/agent/mono-agent" "$out/mono-agent-$arch"
 done

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "monomyth",
+      "name": "mono",
       "dependencies": {
         "@heroui/react": "^3.2.6",
         "@heroui/styles": "^3.2.6",

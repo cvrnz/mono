@@ -116,7 +116,7 @@ fn a_terminal_runs_a_command_and_reports_its_exit() {
     let opened = s.call("term.open", json!({ "cols": 80, "rows": 24, "cwd": w })).unwrap();
     let id = opened["id"].as_str().unwrap().to_string();
     s.call("term.resize", json!({ "id": id, "cols": 100, "rows": 30 })).unwrap();
-    s.call("term.input", json!({ "id": id, "data": B64.encode("echo mono$(echo myth)\rexit\r") })).unwrap();
+    s.call("term.input", json!({ "id": id, "data": B64.encode("echo mo$(echo no)\rexit\r") })).unwrap();
     let deadline = Instant::now() + Duration::from_secs(15);
     while !events.lock().unwrap().iter().any(|(e, p)| e == "term.exit" && p["id"] == json!(id)) {
         assert!(Instant::now() < deadline, "the shell didn't exit");
@@ -129,7 +129,7 @@ fn a_terminal_runs_a_command_and_reports_its_exit() {
         .filter(|(e, p)| e == "term.data" && p["id"] == json!(id))
         .flat_map(|(_, p)| B64.decode(p["data"].as_str().unwrap()).unwrap())
         .collect();
-    assert!(String::from_utf8_lossy(&output).contains("monomyth"));
+    assert!(String::from_utf8_lossy(&output).contains("mono"));
     assert!(s.call("term.input", json!({ "id": id, "data": "" })).unwrap_err().contains("no terminal"));
 }
 

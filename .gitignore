@@ -2,5 +2,5 @@ node_modules
 dist
 target
 src-tauri/gen
-src-tauri/resources/agent/monomyth-agent-*
+src-tauri/resources/agent/mono-agent-*
 .DS_Store

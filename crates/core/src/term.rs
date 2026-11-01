@@ -80,7 +80,7 @@ impl Terminals {
         cmd.cwd(cwd);
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
-        cmd.env("TERM_PROGRAM", "monomyth");
+        cmd.env("TERM_PROGRAM", "mono");
         cmd.env("SHELL", &shell);
         if std::env::var_os("LANG").is_none() {
             cmd.env("LANG", "C.UTF-8");

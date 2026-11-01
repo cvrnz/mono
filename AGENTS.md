@@ -1,6 +1,6 @@
 # Agent instructions
 
-- Monomyth is a Tauri 2 desktop app: the page in `src/` (React, Vite, Bun), the app in
+- Mono is a Tauri 2 desktop app: the page in `src/` (React, Vite, Bun), the app in
   `src-tauri/`, and `crates/core`, which does a project's file, search, git and terminal work both
   in the app (folders on this computer) and in `crates/agent` (the helper copied into Docker
   containers). New project features go in `crates/core` so both get them.

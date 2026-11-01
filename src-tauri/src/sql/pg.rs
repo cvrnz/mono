@@ -87,7 +87,7 @@ where
 impl Pg {
     pub async fn open(c: &Config) -> Result<Pg, String> {
         let mut cfg = tokio_postgres::Config::new();
-        cfg.host(c.host()).port(c.port(5432)).application_name("monomyth").connect_timeout(Duration::from_secs(15));
+        cfg.host(c.host()).port(c.port(5432)).application_name("mono").connect_timeout(Duration::from_secs(15));
         cfg.user(c.user().unwrap_or_else(default_user));
         if let Some(p) = c.password() {
             cfg.password(p);

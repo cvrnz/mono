@@ -116,7 +116,7 @@ impl Ms {
         let mut config = tiberius::Config::new();
         config.host(c.host());
         config.port(c.port(1433));
-        config.application_name("monomyth");
+        config.application_name("mono");
         if let Some(d) = c.database() {
             config.database(d);
         }

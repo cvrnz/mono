@@ -1,5 +1,5 @@
 [package]
-name = "monomyth-core"
+name = "mono-core"
 version.workspace = true
 edition.workspace = true
 

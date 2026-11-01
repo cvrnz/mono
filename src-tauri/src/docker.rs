@@ -92,9 +92,9 @@ async fn arch(docker: &str, container: &str) -> Result<&'static str, String> {
 
 async fn install(docker: &str, container: &str, agents: &Path, status: &(dyn Fn(&str) + Send + Sync)) -> Result<String, String> {
     let arch = arch(docker, container).await?;
-    let local = agents.join(format!("monomyth-agent-{arch}"));
+    let local = agents.join(format!("mono-agent-{arch}"));
     let data = tokio::fs::read(&local).await.map_err(|e| format!("the container helper is missing ({}): {e}", local.display()))?;
-    let remote = format!("/tmp/monomyth-agent-{}", digest(&data));
+    let remote = format!("/tmp/mono-agent-{}", digest(&data));
     if run(docker, &["exec", container, &remote, "--version"]).await.is_ok() {
         return Ok(remote);
     }
@@ -222,7 +222,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn talks_to_a_running_container() {
-        let Ok(container) = std::env::var("MONOMYTH_TEST_CONTAINER") else { return };
+        let Ok(container) = std::env::var("MONO_TEST_CONTAINER") else { return };
         let listed = containers("docker").await.unwrap();
         assert!(listed.iter().any(|c| c.name == container && c.running));
         let agents = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/agent");

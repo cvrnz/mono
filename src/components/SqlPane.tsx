@@ -134,7 +134,7 @@ export default function SqlPane({ tab, active }: Props) {
       editor.onDidFocusEditorText(status),
     ]
     editor.addAction({
-      id: 'monomyth.sql.run',
+      id: 'mono.sql.run',
       label: 'Run Query',
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
       contextMenuGroupId: 'navigation',

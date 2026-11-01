@@ -102,7 +102,7 @@ export default function ConnectScreen() {
   return (
     <div className="connect">
       <div className="connect-inner">
-        <h1>Monomyth</h1>
+        <h1>Mono</h1>
         <div className="sub">Edit files on this computer, or inside a Docker container running on it.</div>
         {others && (
           <div className="row-fields">

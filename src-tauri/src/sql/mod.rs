@@ -370,14 +370,14 @@ select * from t where id > 99;";
 
     #[tokio::test]
     async fn postgres() {
-        if let Some(c) = server("postgres", "MONOMYTH_TEST_PG_PORT") {
+        if let Some(c) = server("postgres", "MONO_TEST_PG_PORT") {
             check("postgres", c).await;
         }
     }
 
     #[tokio::test]
     async fn mysql() {
-        if let Some(c) = server("mysql", "MONOMYTH_TEST_MYSQL_PORT") {
+        if let Some(c) = server("mysql", "MONO_TEST_MYSQL_PORT") {
             check("mysql", c).await;
         }
     }
