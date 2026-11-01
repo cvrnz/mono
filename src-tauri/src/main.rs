@@ -90,6 +90,21 @@ fn save_settings(app: AppHandle, data: String) -> Result<(), String> {
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
+#[cfg(target_os = "macos")]
+fn hide_window_buttons(w: &tauri::WebviewWindow) {
+    use objc2_app_kit::{NSWindow, NSWindowButton};
+    let Ok(ptr) = w.ns_window() else { return };
+    let window = unsafe { &*(ptr as *const NSWindow) };
+    for b in [NSWindowButton::CloseButton, NSWindowButton::MiniaturizeButton, NSWindowButton::ZoomButton] {
+        if let Some(button) = window.standardWindowButton(b) {
+            button.setHidden(true);
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn hide_window_buttons(_: &tauri::WebviewWindow) {}
+
 #[tauri::command]
 fn themes(app: AppHandle) -> Vec<Value> {
     theme_files(&config_dir(&app).join("themes")).into_iter().map(|(file, text)| json!({ "file": file, "text": text })).collect()
@@ -372,7 +387,18 @@ fn main() {
         .on_menu_event(|app, e| if e.id().as_ref() == "quit" {
             ask_page(app);
         })
+        .setup(|app| {
+            if let Some(w) = app.get_webview_window("main") {
+                hide_window_buttons(&w);
+            }
+            Ok(())
+        })
         .on_window_event(|w, e| {
+            if matches!(e, WindowEvent::Resized(_) | WindowEvent::Focused(_)) {
+                if let Some(w) = w.app_handle().get_webview_window(w.label()) {
+                    hide_window_buttons(&w);
+                }
+            }
             if let WindowEvent::CloseRequested { api, .. } = e {
                 if ask_page(w.app_handle()) {
                     api.prevent_close();

@@ -35,9 +35,6 @@ body,
   right: 0;
   height: 40px;
 }
-[data-platform='darwin'] .topbar {
-  padding-left: 80px;
-}
 
 .workspace {
   display: flex;
