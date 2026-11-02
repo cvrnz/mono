@@ -408,8 +408,11 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
               setView(which)
               if (r.item) setSel((s) => ({ ...s, [which]: i }))
             }}
-            onDoubleClick={() => choose(r.item)}
-            onClick={() => r.item?.sync && runSync()}
+            onDoubleClick={() => r.item?.change && choose(r.item)}
+            onClick={() => {
+              if (r.item?.sync) runSync()
+              else if (r.item?.repo) selectRepo(r.item.repo)
+            }}
           >
             {r.text}
           </div>
