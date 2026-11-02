@@ -4,7 +4,7 @@ export type PaneHandle = {
   focus(): void
   save?(as?: boolean, path?: string): Promise<boolean>
   isEmpty?(): boolean
-  reveal?(line: number, col?: number): void
+  reveal?(line: number, col?: number, len?: number): void
   vimEx?(command: string): void
   shellInput?(): boolean
   editor?: Monaco.editor.ICodeEditor

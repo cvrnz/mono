@@ -13,6 +13,7 @@ const bindings: Binding[] = [
   { code: 'KeyF', run: () => A.toggleSearch() },
   { code: 'KeyG', run: () => A.openScm() },
   { code: 'KeyE', run: () => A.openExplorer() },
+  { code: 'KeyB', run: () => A.toggleSidebar() },
   { code: 'KeyT', run: () => A.openTerminal() },
   { code: 'KeyD', run: () => A.openSql() },
   { code: 'Backslash', run: () => A.splitTerminal('below') },
@@ -37,7 +38,14 @@ function inTerminal(target: EventTarget | null) {
 }
 
 function onKeyDown(e: KeyboardEvent) {
-  if (isDialogOpen() || e.altKey) return
+  if (isDialogOpen()) return
+  if (e.altKey && e.code === 'KeyZ' && !e.metaKey && !e.ctrlKey && !e.shiftKey && S.isConnected(S.get().conn)) {
+    e.preventDefault()
+    e.stopPropagation()
+    A.toggleWordWrap()
+    return
+  }
+  if (e.altKey) return
   if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
     const s = S.get()
     if (s.palette) {

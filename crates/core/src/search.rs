@@ -57,6 +57,11 @@ pub fn files(a: FilesArgs) -> Files {
 pub struct GrepArgs {
     root: String,
     query: String,
+    case: Option<bool>,
+    #[serde(default)]
+    word: bool,
+    #[serde(default)]
+    regex: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -64,6 +69,7 @@ pub struct Match {
     path: String,
     line: u64,
     col: usize,
+    len: usize,
     text: String,
 }
 
@@ -86,9 +92,14 @@ pub fn grep(a: GrepArgs) -> Result<Grep, String> {
     if a.query.is_empty() {
         return Ok(Grep { matches: vec![], truncated: false });
     }
-    let matcher = RegexMatcherBuilder::new()
-        .case_smart(true)
-        .fixed_strings(true)
+    let mut builder = RegexMatcherBuilder::new();
+    match a.case {
+        Some(sensitive) => builder.case_insensitive(!sensitive),
+        None => builder.case_smart(true),
+    };
+    let matcher = builder
+        .fixed_strings(!a.regex)
+        .word(a.word)
         .build(&a.query)
         .map_err(|e| e.to_string())?;
     let found = Mutex::new(Vec::<Match>::new());
@@ -112,11 +123,14 @@ pub fn grep(a: GrepArgs) -> Result<Grep, String> {
                 &matcher,
                 entry.path(),
                 Lossy(|line_number, line| {
-                    let col = match matcher.find(line.as_bytes()) {
-                        Ok(Some(m)) => line[..m.start()].chars().count() + 1,
-                        _ => 1,
+                    let (col, len) = match matcher.find(line.as_bytes()) {
+                        Ok(Some(m)) => (
+                            line.get(..m.start()).map_or(0, |s| s.chars().count()) + 1,
+                            line.get(m.start()..m.end()).map_or(0, |s| s.chars().count()),
+                        ),
+                        _ => (1, 0),
                     };
-                    mine.push(Match { path: rel.clone(), line: line_number, col, text: clip(line) });
+                    mine.push(Match { path: rel.clone(), line: line_number, col, len, text: clip(line) });
                     Ok(mine.len() < MAX_PER_FILE)
                 }),
             );

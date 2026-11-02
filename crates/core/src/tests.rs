@@ -110,12 +110,24 @@ fn search_and_source_control_in_a_repo() {
         .collect();
     assert_eq!(found, [("one.txt".to_string(), 2, 1), ("two.txt".to_string(), 1, 4)]);
     assert_eq!(s.call("fs.grep", json!({ "root": repo, "query": "Needle" })).unwrap()["matches"].as_array().unwrap().len(), 0);
+    let count = |q: Value| s.call("fs.grep", q).unwrap()["matches"].as_array().unwrap().len();
+    assert_eq!(count(json!({ "root": repo, "query": "Needle", "case": false })), 2);
+    assert_eq!(count(json!({ "root": repo, "query": "needle", "case": true })), 2);
+    assert_eq!(count(json!({ "root": repo, "query": "needl", "word": true })), 0);
+    assert_eq!(count(json!({ "root": repo, "query": "^xx\\s+ne+dle$", "regex": true })), 1);
+    assert_eq!(s.call("fs.grep", json!({ "root": repo, "query": "needle" })).unwrap()["matches"][0]["len"], json!(6));
 
     let repos = s.call("scm.repos", json!({ "roots": [w] })).unwrap();
     let info = &repos[0];
     assert_eq!(info["name"], json!("repo"));
     assert_eq!(info["count"], json!(2));
     assert_eq!(info["action"], Value::Null);
+    let log = s.call("scm.log", json!({ "repo": info["path"] })).unwrap();
+    assert_eq!(log.as_array().unwrap().len(), 1);
+    assert_eq!(log[0]["subject"], json!("first"));
+    let shown = s.call("scm.show", json!({ "repo": info["path"], "hash": log[0]["hash"] })).unwrap();
+    assert!(shown["text"].as_str().unwrap().contains("first"));
+    assert!(s.call("scm.show", json!({ "repo": info["path"], "hash": "--output=x" })).is_err());
     let changes = s.call("scm.changes", json!({ "repo": info["path"] })).unwrap();
     assert_eq!(changes, json!([{ "status": "M", "path": "one.txt" }, { "status": "U", "path": "two.txt" }]));
     let v = s.call("scm.versions", json!({ "repo": info["path"], "change": changes[0] })).unwrap();

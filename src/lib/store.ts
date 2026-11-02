@@ -1,5 +1,5 @@
 import { createContext, useContext, useSyncExternalStore } from 'react'
-import type { Hello } from './agent'
+import type { Change, Hello } from './agent'
 
 export type Target = { kind: 'local'; folder: string } | { kind: 'docker'; container: string; folder: string }
 
@@ -23,13 +23,17 @@ export type Settings = {
   dockerPath?: string
   recents: Target[]
   sqlConnections?: SqlConnection[]
-  sideWidths?: { explorer?: number; git?: number; sql?: number; search?: number }
+  sideWidths?: { sidebar?: number; sql?: number }
+  sidebar?: FixedKind | 'none'
   tabIcons?: boolean
+  wordWrap?: boolean
   session?: SavedSession
 }
 
 export type SavedTab = (
-  | { kind: 'file'; path: string; line?: number; col?: number }
+  | { kind: 'file'; path: string; line?: number; col?: number; preview?: boolean }
+  | { kind: 'diff'; repo: string; change: Change; preview?: boolean }
+  | { kind: 'commit'; repo: string; hash: string; subject: string; preview?: boolean }
   | { kind: 'terminal'; cwd: string }
   | { kind: 'scm' }
   | { kind: 'welcome' }
@@ -70,16 +74,18 @@ export type SqlConnection = {
 
 export type Splits = { dir: 'below' | 'right'; panes: string[] }
 
-type TabBase = { id: string; splits?: Splits; focus?: string }
-export type FileTab = TabBase & { kind: 'file'; path: string | null; dirty: boolean; line?: number; col?: number }
+type TabBase = { id: string; splits?: Splits; focus?: string; preview?: boolean }
+export type FileTab = TabBase & { kind: 'file'; path: string | null; dirty: boolean; line?: number; col?: number; len?: number }
+export type DiffTab = TabBase & { kind: 'diff'; repo: string; change: Change }
+export type CommitTab = TabBase & { kind: 'commit'; repo: string; hash: string; subject: string }
 export type TerminalTab = TabBase & { kind: 'terminal'; cwd: string }
 export type ScmTab = TabBase & { kind: 'scm' }
 export type WelcomeTab = TabBase & { kind: 'welcome' }
-export type ExplorerTab = TabBase & { kind: 'explorer'; reveal?: string }
+export type ExplorerTab = TabBase & { kind: 'explorer' }
 export type SqlTab = TabBase & { kind: 'sql'; conn?: string; text?: string }
 export type SearchKind = 'files' | 'text'
 export type SearchTab = TabBase & { kind: 'search'; ask?: { kind: SearchKind; text: string; n: number } }
-export type Tab = FileTab | TerminalTab | ScmTab | WelcomeTab | ExplorerTab | SqlTab | SearchTab
+export type Tab = FileTab | DiffTab | CommitTab | TerminalTab | ScmTab | WelcomeTab | ExplorerTab | SqlTab | SearchTab
 
 export const fixedKinds = ['explorer', 'scm', 'search'] as const
 export type FixedKind = (typeof fixedKinds)[number]
@@ -96,6 +102,11 @@ export function withFixed(tabs: Tab[]): Tab[] {
 
 export function firstOwnTab(tabs: Tab[]): Tab {
   return tabs.find((t) => !isFixed(t)) ?? tabs[0]
+}
+
+export function sidebar(s: State = state): FixedKind | null {
+  const v = s.settings.sidebar ?? 'explorer'
+  return v === 'none' ? null : v
 }
 
 export type Connection =
@@ -134,6 +145,7 @@ export type State = {
   previewTheme: string | null
   session: number
   draggingTab: string | null
+  hints: Record<string, string[]>
 }
 
 const first = blankProject('w0')
@@ -151,6 +163,7 @@ let state: State = {
   previewTheme: null,
   session: 0,
   draggingTab: null,
+  hints: {},
 }
 
 const listeners = new Set<() => void>()
@@ -182,6 +195,15 @@ export function useStore<T>(selector: (s: State) => T): T {
 let nextId = 0
 export function newId(prefix = 't'): string {
   return `${prefix}${++nextId}`
+}
+
+export function setHints(id: string, items: string[] | null) {
+  set((s) => {
+    const hints = { ...s.hints }
+    if (items) hints[id] = items
+    else delete hints[id]
+    return { hints }
+  })
 }
 
 export function setPaneStatus(id: string, status: PaneStatus) {

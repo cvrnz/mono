@@ -14,8 +14,12 @@ function saveTab(t: S.Tab): S.SavedTab | null {
       const pos = pane(t.id)?.editor?.getPosition()
       if (pos) cursors.set(t.id, { line: pos.lineNumber, col: pos.column - 1 })
       const c = cursors.get(t.id) ?? (t.line ? { line: t.line, col: t.col ?? 0 } : undefined)
-      return { kind: 'file', path: t.path, ...c, splits }
+      return { kind: 'file', path: t.path, ...c, preview: t.preview || undefined, splits }
     }
+    case 'diff':
+      return { kind: 'diff', repo: t.repo, change: t.change, preview: t.preview || undefined }
+    case 'commit':
+      return { kind: 'commit', repo: t.repo, hash: t.hash, subject: t.subject, preview: t.preview || undefined }
     case 'terminal':
       return { kind: 'terminal', cwd: t.cwd, splits }
     case 'sql':
@@ -56,7 +60,11 @@ function openTab(t: S.SavedTab): S.Tab {
   const splits = t.splits?.count ? { dir: t.splits.dir, panes: Array.from({ length: t.splits.count }, () => S.newId('p')) } : undefined
   switch (t.kind) {
     case 'file':
-      return { id, kind: 'file', path: t.path, dirty: false, line: t.line, col: t.col, splits }
+      return { id, kind: 'file', path: t.path, dirty: false, line: t.line, col: t.col, preview: t.preview, splits }
+    case 'diff':
+      return { id, kind: 'diff', repo: t.repo, change: t.change, preview: t.preview }
+    case 'commit':
+      return { id, kind: 'commit', repo: t.repo, hash: t.hash, subject: t.subject, preview: t.preview }
     case 'terminal':
       return { id, kind: 'terminal', cwd: t.cwd, splits }
     case 'sql':
@@ -74,7 +82,7 @@ export function restoredTabs(id: string, target: S.Target): Pick<S.Project, 'tab
   const opened = saved.tabs.map(openTab)
   const tabs = S.withFixed(opened)
   const active = opened[saved.active]
-  return { tabs, active: active && tabs.includes(active) ? active.id : S.firstOwnTab(tabs).id }
+  return { tabs, active: active && !S.isFixed(active) && tabs.includes(active) ? active.id : S.firstOwnTab(tabs).id }
 }
 
 let last = ''

@@ -98,6 +98,9 @@ button:disabled,
   margin: auto 6px;
   background: color-mix(in srgb, var(--dim) 60%, transparent);
 }
+.tab.preview {
+  font-style: italic;
+}
 .tab.dragging {
   outline: 1px solid var(--border);
 }
@@ -187,10 +190,116 @@ button:disabled,
   font-family: var(--sans);
 }
 
+.main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
 .panes {
   position: relative;
   flex: 1;
+  min-width: 0;
   min-height: 0;
+}
+.sidebar {
+  position: relative;
+  flex: none;
+  width: 320px;
+  min-width: 0;
+  max-width: 60%;
+  border-right: 1px solid var(--separator);
+}
+.sidebar.hidden,
+.side-view.hidden {
+  display: none;
+}
+.side-view {
+  position: absolute;
+  inset: 0;
+}
+.sidebar .row {
+  display: flex;
+  align-items: center;
+}
+.sidebar .row > * {
+  flex: none;
+}
+.sidebar .row .name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar .row .path {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: 1ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.85em;
+}
+.sidebar .row .status,
+.sidebar .row .branch,
+.sidebar .row .when,
+.sidebar .badge {
+  margin-left: auto;
+  padding-left: 1ch;
+}
+.sidebar .badge {
+  min-width: 2.4ch;
+  text-align: center;
+  padding: 0 0.6ch;
+  margin-right: 0;
+  border-radius: 9px;
+  line-height: 18px;
+  font-size: 0.8em;
+  color: var(--fg);
+  background: var(--raised);
+}
+.sidebar .row .when {
+  font-size: 0.85em;
+}
+.git-add-line {
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+}
+.git-del-line {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+}
+.monaco-editor .git-add-line-text {
+  color: var(--green);
+}
+.monaco-editor .git-del-line-text {
+  color: var(--red);
+}
+.monaco-editor .git-hunk-line-text {
+  color: var(--cyan);
+}
+.monaco-editor .git-file-line-text,
+.monaco-editor .git-commit-line-text {
+  color: var(--yellow);
+  font-weight: bold;
+}
+.sidebar .chev,
+.sidebar .ficon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.sidebar .ficon {
+  margin-right: 6px;
+}
+.sidebar .chev {
+  color: var(--fg);
+  opacity: 0.75;
+  margin-right: 2px;
+  transition: transform 0.1s;
+}
+.sidebar .chev.open {
+  transform: rotate(90deg);
+}
+.diff-pane {
+  position: absolute;
+  inset: 0;
 }
 .pane {
   position: absolute;
@@ -349,10 +458,9 @@ button:disabled,
   min-height: 0;
 }
 .explorer-tree {
-  width: 38%;
-  min-width: 220px;
+  flex: 1;
+  min-width: 0;
   overflow: auto;
-  border-right: 1px solid var(--separator);
   padding: 4px 0;
   outline: none;
 }
@@ -470,15 +578,6 @@ button:disabled,
 .explorer-tree .link {
   color: var(--cyan);
 }
-.explorer-preview {
-  flex: 1;
-  min-width: 0;
-  position: relative;
-}
-.explorer-preview .note {
-  color: var(--dim);
-  padding: 8px 2ch;
-}
 .hints {
   display: flex;
   gap: 3ch;
@@ -495,6 +594,9 @@ button:disabled,
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.hints-keys > span:not(:last-child) {
+  margin-right: 3ch;
+}
 .hints-nav {
   flex: none;
 }
@@ -504,19 +606,18 @@ button:disabled,
   flex-direction: column;
   height: 100%;
 }
-.scm-body {
-  display: flex;
+.scm-side {
   flex: 1;
   min-height: 0;
-}
-.scm-side {
-  flex: none;
   display: flex;
   flex-direction: column;
-  max-width: 50%;
-  min-width: 220px;
-  border-right: 1px solid var(--separator);
   outline: none;
+}
+.scm-action {
+  color: var(--blue);
+}
+.row .gone {
+  text-decoration: line-through;
 }
 .scm-list {
   display: flex;
@@ -527,7 +628,8 @@ button:disabled,
   flex: none;
   max-height: 40%;
 }
-.scm-changes {
+.scm-changes,
+.scm-log {
   flex: 1;
   border-top: 1px solid var(--separator);
 }
@@ -951,12 +1053,70 @@ button:disabled,
   border-color: var(--blue);
 }
 
-.search .prompt {
-  padding: 4px 1ch 6px;
+.search {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
-.search .results {
+.search-head {
   flex: none;
-  width: 45%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 1ch 6px;
+  border-bottom: 1px solid var(--separator);
+}
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px 2px 1ch;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--raised);
+}
+.search-box:focus-within {
+  border-color: var(--blue);
+}
+.search-box input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--fg);
+  font: inherit;
+  line-height: 24px;
+}
+.search-box input::placeholder {
+  color: var(--dim);
+}
+.search-toggle {
+  flex: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  line-height: 20px;
+  font-size: 0.85em;
+  color: var(--dim);
+  border: 1px solid transparent;
+}
+.search-toggle:hover {
+  color: var(--fg);
+}
+.search-toggle.on {
+  color: var(--fg);
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 25%, transparent);
+}
+.search-summary {
+  color: var(--dim);
+  font-size: 0.85em;
+}
+.search-results {
+  min-height: 0;
+}
+.search-results .row.match {
+  padding-left: calc(1ch + 40px);
 }
 .search-kinds {
   display: flex;
@@ -974,9 +1134,6 @@ button:disabled,
 }
 .search-kinds span:not(.on):hover {
   color: var(--fg);
-}
-.search .prompt input::placeholder {
-  color: var(--dim);
 }
 .search-hit-line {
   background: var(--raised);

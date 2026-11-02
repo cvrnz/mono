@@ -21,7 +21,9 @@ export type Repo = {
   action: SyncAction | null
 }
 export type Version = { content: string; binary: boolean }
-export type Match = { path: string; line: number; col: number; text: string }
+export type Commit = { hash: string; short: string; author: string; time: number; subject: string; refs: string }
+export type Match = { path: string; line: number; col: number; len?: number; text: string }
+export type GrepOptions = { case?: boolean; word?: boolean; regex?: boolean }
 
 export function agentFor(project: string | (() => string)) {
   const conn = typeof project === 'function' ? project : () => project
@@ -36,10 +38,12 @@ export function agentFor(project: string | (() => string)) {
     remove: (path: string) => call<void>(conn(), 'fs.delete', { path }),
     stat: (path: string) => call<{ exists: boolean; dir: boolean }>(conn(), 'fs.stat', { path }),
     files: (root: string) => call<{ files: string[]; truncated: boolean }>(conn(), 'fs.files', { root }),
-    grep: (root: string, query: string) => call<{ matches: Match[]; truncated: boolean }>(conn(), 'fs.grep', { root, query }),
+    grep: (root: string, query: string, opts: GrepOptions = {}) => call<{ matches: Match[]; truncated: boolean }>(conn(), 'fs.grep', { root, query, ...opts }),
     repos: (roots: string[], depth?: number) => call<Repo[]>(conn(), 'scm.repos', { roots, depth }),
     changes: (repo: string) => call<Change[]>(conn(), 'scm.changes', { repo }),
     versions: (repo: string, change: Change) => call<{ old: Version; new: Version }>(conn(), 'scm.versions', { repo, change }),
+    log: (repo: string, limit?: number) => call<Commit[]>(conn(), 'scm.log', { repo, limit }),
+    show: (repo: string, hash: string) => call<{ text: string }>(conn(), 'scm.show', { repo, hash }),
     fetch: (repo: string, name: string) => call<Repo>(conn(), 'scm.fetch', { repo, name }),
     sync: (repo: string) => call<void>(conn(), 'scm.sync', { repo }),
     termOpen: (cols: number, rows: number, cwd: string) => call<{ id: string; shell: string }>(conn(), 'term.open', { cols, rows, cwd }),

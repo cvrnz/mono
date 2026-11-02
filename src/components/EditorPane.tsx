@@ -1,7 +1,7 @@
 import { initVimMode, type VimAdapterInstance } from 'monaco-vim'
 import { useEffect, useRef, useState } from 'react'
 import { agentFor } from '../lib/agent'
-import { askPath, okToWrite } from '../lib/actions'
+import { askPath, okToWrite, sidebarFocused } from '../lib/actions'
 import { errorText } from '../lib/bridge'
 import { toast } from '../lib/dialogs'
 import { charWidth } from '../lib/metrics'
@@ -31,7 +31,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
 
   const settings = S.useStore((s) => s.settings)
   const project = S.useProjectId()
-  const { vim, lineNumbers, fontSize, fontFamily, maxColumns } = settings
+  const { vim, lineNumbers, fontSize, fontFamily, maxColumns, wordWrap } = settings
 
   useEffect(() => {
     let disposed = false
@@ -42,6 +42,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
       fontFamily: S.get().settings.fontFamily,
       fontSize: S.get().settings.fontSize,
       lineNumbers: S.get().settings.lineNumbers ? 'on' : 'off',
+      wordWrap: S.get().settings.wordWrap ? 'on' : 'off',
       lineDecorationsWidth: '2ch',
       lineNumbersMinChars: 3,
       glyphMargin: false,
@@ -91,6 +92,12 @@ export default function EditorPane({ tab, active, centered }: Props) {
       })
     }
 
+    const goTo = (line: number, col = 0, len = 0) => {
+      const end = S.get().settings.vim ? 0 : len
+      editor.setSelection(new monaco.Range(line, col + 1, line, col + 1 + end))
+      editor.revealLineInCenter(line)
+    }
+
     const attach = (content: string) => {
       const path = pathRef.current
       const firstLine = content.slice(0, content.indexOf('\n') >>> 0)
@@ -102,13 +109,10 @@ export default function EditorPane({ tab, active, centered }: Props) {
       model.onDidChangeContent(() => {
         const dirty = model.getAlternativeVersionId() !== savedVersion.current
         const t = S.project(project)?.tabs.find((x) => x.id === tab.id)
-        if (t?.kind === 'file' && t.dirty !== dirty) S.updateTab(tab.id, { dirty })
+        if (t?.kind === 'file' && (t.dirty !== dirty || (dirty && t.preview))) S.updateTab(tab.id, dirty ? { dirty, preview: false } : { dirty })
         status()
       })
-      if (tab.line) {
-        editor.setPosition({ lineNumber: tab.line, column: (tab.col ?? 0) + 1 })
-        editor.revealLineInCenter(tab.line)
-      }
+      if (tab.line) goTo(tab.line, tab.col, tab.len)
       setLoaded(true)
       status()
     }
@@ -172,10 +176,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
       focus: () => editor.focus(),
       save,
       isEmpty: () => (editor.getModel()?.getValueLength() ?? 0) === 0,
-      reveal: (line, col) => {
-        editor.setPosition({ lineNumber: line, column: (col ?? 0) + 1 })
-        editor.revealLineInCenter(line)
-      },
+      reveal: goTo,
       vimEx: (command) => {
         if (vimRef.current) Vim.handleEx(vimRef.current, command)
       },
@@ -234,11 +235,11 @@ export default function EditorPane({ tab, active, centered }: Props) {
   }, [vim, loaded, tab.id])
 
   useEffect(() => {
-    editorRef.current?.updateOptions({ fontSize, fontFamily, lineNumbers: lineNumbers ? 'on' : 'off' })
-  }, [fontSize, fontFamily, lineNumbers])
+    editorRef.current?.updateOptions({ fontSize, fontFamily, lineNumbers: lineNumbers ? 'on' : 'off', wordWrap: wordWrap ? 'on' : 'off' })
+  }, [fontSize, fontFamily, lineNumbers, wordWrap])
 
   useEffect(() => {
-    if (active && loaded) {
+    if (active && loaded && !sidebarFocused()) {
       editorRef.current?.focus()
     }
   }, [active, loaded])
@@ -254,7 +255,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
       <div ref={host} className="editor-host" style={{ visibility: note ? 'hidden' : undefined }} />
       {note && (
         <div className="editor-note" tabIndex={0} ref={(el) => {
-            if (el && active) el.focus()
+            if (el && active && !sidebarFocused()) el.focus()
           }}>
           {note}
         </div>

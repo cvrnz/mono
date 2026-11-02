@@ -46,6 +46,8 @@ impl Service {
             "scm.repos" => json(scm::repos(args(params)?)),
             "scm.changes" => json(scm::changes_of(args(params)?)),
             "scm.versions" => json(scm::versions(args(params)?)),
+            "scm.log" => json(scm::log(args(params)?)),
+            "scm.show" => json(scm::show(args(params)?)?),
             "scm.fetch" => json(scm::fetch(args(params)?)?),
             "scm.sync" => json(scm::sync(args(params)?)?),
             "term.open" => json(self.terms.open(args(params)?)?),

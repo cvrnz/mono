@@ -10,7 +10,7 @@ import { updateSettings } from '../lib/settings'
 import * as sql from '../lib/sql'
 import * as S from '../lib/store'
 import { setupVim } from '../lib/vim'
-import Hints from './Hints'
+import { useHints } from './Hints'
 import SideSplitter, { sideStyle, useSideWidth } from './SideSplitter'
 import SqlGrid from './SqlGrid'
 
@@ -569,6 +569,7 @@ export default function SqlPane({ tab, active }: Props) {
           : info
             ? ['j/k move', 'Enter first 100 rows', 'l/h expand/collapse', 'i insert name', 'y copy name', 'R refresh']
             : ['j/k move', 'Enter connect', 'a new', 'e edit', 'd delete']
+  useHints(tab.id, hints)
 
   return (
     <div className="sql">
@@ -698,7 +699,6 @@ export default function SqlPane({ tab, active }: Props) {
         )}
       </div>
       </div>
-      <Hints items={hints} />
     </div>
   )
 }

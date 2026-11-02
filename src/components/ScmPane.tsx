@@ -1,24 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { agentFor, type Change, type Repo } from '../lib/agent'
-import { openFile } from '../lib/actions'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { agentFor, type Change, type Commit, type Repo } from '../lib/agent'
+import { openCommit, openDiff, openFile, type OpenOptions } from '../lib/actions'
 import { errorText } from '../lib/bridge'
 import { toast } from '../lib/dialogs'
-import { languageFor, monaco } from '../lib/monaco'
 import { register } from '../lib/panes'
-import { useParts } from '../lib/parts'
-import { isInside, join, pretty } from '../lib/paths'
+import { basename, dirname, isInside, join, pretty } from '../lib/paths'
 import * as S from '../lib/store'
-import Hints from './Hints'
-import SideSplitter, { sideStyle, useSideWidth } from './SideSplitter'
+import FileIcon from './FileIcon'
+import { useHints } from './Hints'
 
 type Busy = { repo: string; verb: string; frame: number } | { repo: string; text: string; cls: string }
-type Row = { text: React.ReactNode; width: number; item?: { repo?: Repo; change?: Change; sync?: boolean } }
+type Item = { repo?: Repo; change?: Change; commit?: Commit; sync?: boolean }
+type View = 'repos' | 'changes' | 'log'
+type Row = { key: string; node: ReactNode; item?: Item; indent?: number; title?: string }
 
 type Entry = { label: string; indent: number; repo?: Repo }
-type Node = { children: Map<string, Node>; repo?: Repo }
+type TreeNode = { children: Map<string, TreeNode>; repo?: Repo }
 
 function repoTree(repos: Repo[]): Entry[] {
-  const top: Node = { children: new Map() }
+  const top: TreeNode = { children: new Map() }
   for (const r of repos) {
     let node = top
     for (const part of r.name.split('/')) {
@@ -28,7 +28,7 @@ function repoTree(repos: Repo[]): Entry[] {
     node.repo = r
   }
   const out: Entry[] = []
-  const walk = (node: Node, indent: number) => {
+  const walk = (node: TreeNode, indent: number) => {
     for (const [name, child] of [...node.children].sort(([a], [b]) => a.localeCompare(b))) {
       let label = name
       let at = child
@@ -45,6 +45,13 @@ function repoTree(repos: Repo[]): Entry[] {
   return out
 }
 
+function ago(seconds: number): string {
+  const s = Math.max(0, Date.now() / 1000 - seconds)
+  const units: [number, string][] = [[31536000, 'y'], [2592000, 'mo'], [604800, 'w'], [86400, 'd'], [3600, 'h'], [60, 'm']]
+  for (const [n, u] of units) if (s >= n) return `${Math.floor(s / n)}${u}`
+  return 'now'
+}
+
 const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 const lastFetch = new Map<string, number>()
 
@@ -52,13 +59,11 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
   const [repos, setRepos] = useState<Repo[] | null>(null)
   const [repo, setRepo] = useState<Repo | null>(null)
   const [files, setFiles] = useState<Change[]>([])
-  const [view, setView] = useState<'repos' | 'changes'>('repos')
-  const [sel, setSel] = useState({ repos: 0, changes: 0 })
+  const [log, setLog] = useState<Commit[] | null>(null)
+  const [view, setView] = useState<View>('repos')
+  const [sel, setSel] = useState({ repos: 0, changes: 0, log: 0 })
   const [busy, setBusy] = useState<Busy | null>(null)
   const side = useRef<HTMLDivElement>(null)
-  const { part, setPart, list: parts, current: currentPart, nav } = useParts('side')
-  const diffHost = useRef<HTMLDivElement>(null)
-  const diffRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null)
   const repoRef = useRef<Repo | null>(null)
   repoRef.current = repo
   const project = S.useProjectId()
@@ -68,15 +73,15 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     const c = S.project(project)?.conn
     return c && S.isConnected(c) ? c.hello.root : '/'
   }
-  const settings = S.useStore((s) => s.settings)
+  const gitDepth = S.useStore((s) => s.settings.gitDepth)
 
-  const refresh = useCallback(async (pick?: (list: Repo[]) => Repo | undefined) => {
+  const refresh = useCallback(async (pick?: (list: Repo[]) => Repo | undefined, quiet = false) => {
     const root = rootPath()
     let list: Repo[]
     try {
       list = await agent.repos([root], S.get().settings.gitDepth)
     } catch (err) {
-      toast(errorText(err), 'error')
+      if (!quiet) toast(errorText(err), 'error')
       return
     }
     setRepos(list)
@@ -86,6 +91,7 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     setRepo(current)
     if (current) {
       agent.changes(current.path).then(setFiles, () => setFiles([]))
+      agent.log(current.path).then(setLog, () => setLog([]))
     }
     for (const r of list) {
       if (!r.sync || Date.now() - (lastFetch.get(project + r.path) ?? 0) < 60000) continue
@@ -103,15 +109,14 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
 
   useEffect(() => {
     const root = rootPath()
-    refresh((list) => list.find((r) => isInside(root, r.path))).then((res) => {
+    refresh((list) => list.find((r) => isInside(root, r.path)) ?? (list.length === 1 ? list[0] : undefined)).then((res) => {
       if (res?.current) {
         setView('changes')
-        setSel({ repos: repoTree(res.list).findIndex((e) => e.repo?.path === res.current!.path), changes: 0 })
+        setSel({ repos: repoTree(res.list).findIndex((e) => e.repo?.path === res.current!.path), changes: 0, log: 0 })
       }
     })
   }, [refresh])
 
-  const gitDepth = settings.gitDepth
   const shown = useRef({ root: hello?.root, gitDepth })
   useEffect(() => {
     if (shown.current.root === hello?.root && shown.current.gitDepth === gitDepth) return
@@ -124,7 +129,11 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     if (!active) return
     const onFocus = () => refresh()
     window.addEventListener('focus', onFocus)
-    return () => window.removeEventListener('focus', onFocus)
+    const timer = setInterval(() => document.visibilityState === 'visible' && refresh(undefined, true), 5000)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      clearInterval(timer)
+    }
   }, [active, refresh])
   const wasActive = useRef(active)
   useEffect(() => {
@@ -135,51 +144,38 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
   const action = repo?.action ?? null
   const syncRow = useMemo((): Row | null => {
     if (!repo) return null
+    const row = (node: ReactNode): Row => ({ key: 'sync', node, item: { sync: true } })
     if (busy && busy.repo === repo.path) {
-      if ('verb' in busy) {
-        const text = `${spinner[busy.frame % spinner.length]} ${busy.verb}…`
-        return { text: <span className="dim">{text}</span>, width: text.length, item: { sync: true } }
-      }
-      return { text: <span className={busy.cls}>{busy.text}</span>, width: busy.text.length, item: { sync: true } }
+      if ('verb' in busy) return row(<span className="dim">{`${spinner[busy.frame % spinner.length]} ${busy.verb}…`}</span>)
+      return row(<span className={busy.cls}>{busy.text}</span>)
     }
     if (!action) return null
-    return { text: <span className={action.dim ? 'dim' : ''}>{action.label}</span>, width: action.label.length, item: { sync: true } }
+    return row(<span className={action.dim ? 'dim' : 'scm-action'}>{action.label}</span>)
   }, [repo, busy, action])
 
   const repoRows = useMemo((): Row[] => {
-    if (!repos) return [{ text: <span className="dim">Looking for repos…</span>, width: 20 }]
+    if (!repos) return [{ key: 'wait', node: <span className="dim">Looking for repos…</span> }]
     if (repos.length === 0) {
-      const text = `No git repos in ${pretty(rootPath(), '', hello?.home ?? '')}`
-      return [{ text: <span className="dim">{text}</span>, width: text.length }]
+      return [{ key: 'none', node: <span className="dim">{`No git repos in ${pretty(rootPath(), '', hello?.home ?? '')}`}</span> }]
     }
-    const tree = repoTree(repos)
-    const nameWidth = Math.max(...tree.map((e) => e.indent * 2 + e.label.length))
-    return tree.map((e) => {
-      const pad = '  '.repeat(e.indent)
+    return repoTree(repos).map((e) => {
       const r = e.repo
-      if (!r) return { width: 2 + pad.length + e.label.length, text: <span className="dim">{'  ' + pad + e.label}</span> }
-      const name = (pad + e.label).padEnd(nameWidth)
-      const parts = [r.count > 0 ? '●' : ' ', ' ', name, '  ', r.branch]
-      let width = parts.join('').length
-      if (r.arrows) width += 2 + r.arrows.length
-      if (r.count > 0) width += 2 + String(r.count).length
+      if (!r) return { key: 'dir:' + e.label, indent: e.indent, node: <span className="dim name">{e.label}</span> }
       return {
-        width,
+        key: r.path,
+        indent: e.indent,
         item: { repo: r },
-        text: (
+        title: `${r.path}\n${r.branch}${r.arrows ? '  ' + r.arrows : ''}`,
+        node: (
           <>
-            <span className="warnc">{r.count > 0 ? '●' : ' '}</span> {pad}
-            <span style={repo?.path === r.path ? { color: 'var(--blue)', fontWeight: 'bold' } : undefined}>{e.label}</span>
-            {' '.repeat(nameWidth - pad.length - e.label.length)}
-            {'  '}
-            <span className="dim">{r.branch}</span>
-            {r.arrows && <>{'  '}{r.arrows}</>}
-            {r.count > 0 && (
-              <>
-                {'  '}
-                <span className="warnc">{r.count}</span>
-              </>
-            )}
+            <span className="name" style={repo?.path === r.path ? { color: 'var(--blue)', fontWeight: 'bold' } : undefined}>
+              {e.label}
+            </span>
+            <span className="branch">
+              <span className="dim">{r.branch}</span>
+              {r.count > 0 && <span className="warnc">*</span>}
+              {r.arrows && <span>{' ' + r.arrows}</span>}
+            </span>
           </>
         ),
       }
@@ -187,129 +183,64 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
   }, [repos, repo, hello])
 
   const changeRows = useMemo((): Row[] => {
-    if (!repo) return [{ text: <span className="dim">Pick a repo above</span>, width: 17 }]
+    if (!repo) return [{ key: 'pick', node: <span className="dim">Pick a repo above</span> }]
     const rows: Row[] = []
-    if (syncRow) rows.push(syncRow, { text: '', width: 0 })
+    if (syncRow) rows.push(syncRow)
     for (const c of files) {
+      const dir = dirname(c.path)
       rows.push({
-        width: 3 + c.path.length,
+        key: 'c:' + c.path,
         item: { change: c },
-        text: (
+        title: c.old ? `${c.old} → ${c.path}` : c.path,
+        node: (
           <>
-            <span className={`st-${c.status}`}>{c.status}</span>
-            {'  '}
-            {c.path}
+            <FileIcon n={{ name: basename(c.path), path: c.path, dir: false }} />
+            <span className={`name ${c.status === 'D' ? 'gone' : ''}`}>{basename(c.path)}</span>
+            {dir !== '.' && <span className="dim path">{dir}</span>}
+            <span className={`status st-${c.status}`}>{c.status}</span>
           </>
         ),
       })
     }
-    if (files.length === 0) rows.push({ text: <span className="dim">No changes</span>, width: 10 })
+    if (files.length === 0) rows.push({ key: 'clean', node: <span className="dim">No changes</span> })
     return rows
   }, [repo, files, syncRow])
+
+  const logRows = useMemo((): Row[] => {
+    if (!repo) return []
+    if (!log) return [{ key: 'wait', node: <span className="dim">Loading…</span> }]
+    if (log.length === 0) return [{ key: 'none', node: <span className="dim">No commits</span> }]
+    return log.map((c) => ({
+      key: c.hash,
+      item: { commit: c },
+      title: `${c.short}  ${c.author}  ${new Date(c.time * 1000).toLocaleString()}${c.refs ? `\n${c.refs}` : ''}\n\n${c.subject}`,
+      node: (
+        <>
+          <span className="name">{c.subject}</span>
+          <span className="dim when">{ago(c.time)}</span>
+        </>
+      ),
+    }))
+  }, [repo, log])
 
   const selectableIn = (rows: Row[]) => rows.map((r, i) => (r.item ? i : -1)).filter((i) => i >= 0)
   const cursorIn = (rows: Row[], at: number) => {
     const ok = selectableIn(rows)
     return ok.includes(at) ? at : (ok[0] ?? -1)
   }
-  const cursors = { repos: cursorIn(repoRows, sel.repos), changes: cursorIn(changeRows, sel.changes) }
-  const rows = view === 'repos' ? repoRows : changeRows
+  const cursors = { repos: cursorIn(repoRows, sel.repos), changes: cursorIn(changeRows, sel.changes), log: cursorIn(logRows, sel.log) }
+  const rows = view === 'repos' ? repoRows : view === 'changes' ? changeRows : logRows
   const selectable = selectableIn(rows)
   const cursor = cursors[view]
   const entry = cursor >= 0 ? rows[cursor].item : undefined
-  const changeCursor = cursors.changes
-  const shownChange = changeCursor >= 0 ? changeRows[changeCursor].item?.change : undefined
 
-  const dragged = useSideWidth('git')
-  const sideWidth = Math.max(18, ...repoRows.map((r) => r.width), ...changeRows.map((r) => r.width)) + 3
-
-  useEffect(() => {
-    const label = repo ? [repo.name, repo.branch, repo.arrows].filter(Boolean).join('  ') : 'Source Control'
-    S.setPaneStatus(id, { mode: 'normal', items: [label] })
-  }, [id, repo])
-  useEffect(
-    () => () =>
-      S.set((s) => {
-        const status = { ...s.status }
-        delete status[id]
-        return { status }
-      }),
-    [id],
-  )
-
-  useEffect(() => {
-    const st = S.get().settings
-    const diff = monaco.editor.createDiffEditor(diffHost.current!, {
-      automaticLayout: true,
-      readOnly: true,
-      originalEditable: false,
-      renderSideBySide: true,
-      useInlineViewWhenSpaceIsLimited: false,
-      renderOverviewRuler: false,
-      overviewRulerLanes: 0,
-      hideCursorInOverviewRuler: true,
-      overviewRulerBorder: false,
-      enableSplitViewResizing: true,
-      fontFamily: st.fontFamily,
-      fontSize: st.fontSize,
-      lineNumbers: st.lineNumbers ? 'on' : 'off',
-      minimap: { enabled: false },
-      folding: false,
-      glyphMargin: false,
-      renderLineHighlight: 'none',
-      scrollBeyondLastLine: false,
-      lineDecorationsWidth: '2ch',
-      renderIndicators: false,
-      scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false },
-      hideUnchangedRegions: { enabled: false },
-      stickyScroll: { enabled: false },
-    })
-    diffRef.current = diff
-    const unregister = register(id, { focus: () => side.current?.focus(), ...nav })
-    return () => {
-      unregister()
-      const m = diff.getModel()
-      diff.dispose()
-      m?.original.dispose()
-      m?.modified.dispose()
-    }
-  }, [id, nav])
-
-  useEffect(() => {
-    diffRef.current?.updateOptions({ fontSize: settings.fontSize, fontFamily: settings.fontFamily, lineNumbers: settings.lineNumbers ? 'on' : 'off' })
-  }, [settings.fontSize, settings.fontFamily, settings.lineNumbers])
-
-  const seq = useRef(0)
-  useEffect(() => {
-    const diff = diffRef.current
-    if (!diff) return
-    const n = ++seq.current
-    const show = (old: string, now: string, path: string | null) => {
-      const prev = diff.getModel()
-      const lang = languageFor(path, now.split('\n', 1)[0])
-      diff.setModel({ original: monaco.editor.createModel(old, lang), modified: monaco.editor.createModel(now, lang) })
-      prev?.original.dispose()
-      prev?.modified.dispose()
-    }
-    if (!shownChange || !repo) {
-      show('', '', null)
-      return
-    }
-    agent.versions(repo.path, shownChange).then(
-      (v) => {
-        if (n === seq.current) show(v.old.content, v.new.content, shownChange.path)
-      },
-      (err) => toast(errorText(err), 'error'),
-    )
-  }, [shownChange, repo])
-
-  useEffect(() => {
-    if (active) requestAnimationFrame(() => side.current?.focus())
-  }, [active])
+  useEffect(() => register(id, { focus: () => side.current?.focus() }), [id])
 
   const selectRepo = async (r: Repo) => {
     setRepo(r)
     setView('changes')
+    setLog(null)
+    agent.log(r.path).then(setLog, () => setLog([]))
     let list: Change[] = []
     try {
       list = await agent.changes(r.path)
@@ -317,8 +248,7 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
       toast(errorText(err), 'error')
     }
     setFiles(list)
-    const offset = r.action ? 2 : 0
-    setSel((s) => ({ ...s, changes: list.length ? offset : 0 }))
+    setSel((s) => ({ ...s, changes: r.action ? 1 : 0, log: 0 }))
   }
 
   const runSync = async () => {
@@ -345,11 +275,16 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     setTimeout(() => setBusy((b) => (b === done ? null : b)), err ? 4000 : 2500)
   }
 
-  const choose = (item: Row['item']) => {
+  const choose = (item: Item | undefined, opts: OpenOptions = { preview: true }) => {
     if (!item) return
     if (item.repo) selectRepo(item.repo)
     else if (item.sync) runSync()
-    else if (item.change && repo && item.change.status !== 'D') openFile(join(repo.path, item.change.path))
+    else if (item.change && repo) openDiff(repo.path, item.change, opts)
+    else if (item.commit && repo) openCommit(repo.path, item.commit, opts)
+  }
+
+  const openChangedFile = (item: Item | undefined) => {
+    if (item?.change && repo && item.change.status !== 'D') openFile(join(repo.path, item.change.path))
   }
 
   const move = (step: number) => {
@@ -363,96 +298,74 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     if (e.metaKey || e.ctrlKey || e.altKey) return
     const key = e.key
     if (key === 'Tab') {
-      setView((v) => (v === 'repos' ? 'changes' : 'repos'))
+      const order: View[] = ['repos', 'changes', 'log']
+      setView((v) => order[(order.indexOf(v) + (e.shiftKey ? 2 : 1)) % 3])
     } else if (key === 'j' || key === 'ArrowDown') move(1)
     else if (key === 'k' || key === 'ArrowUp') move(-1)
     else if (key === 'g' || key === 'Home') move(-1e9)
     else if (key === 'G' || key === 'End') move(1e9)
-    else if (key === 'Enter' || key === 'o') choose(entry)
+    else if (key === 'Enter') choose(entry)
+    else if (key === ' ' || key === 'l' || key === 'ArrowRight') choose(entry, { preview: true, focus: false })
+    else if (key === 'o') openChangedFile(entry)
     else if (key === 'R') refresh()
     else return
     e.preventDefault()
   }
 
-  parts.current = [
-    { name: 'repos', focus: () => (setView('repos'), side.current?.focus()) },
-    { name: 'changes', focus: () => (setView('changes'), side.current?.focus()) },
-    ...(shownChange ? [{ name: 'diff', focus: () => diffRef.current?.getModifiedEditor().focus() }] : []),
-  ]
-  currentPart.current = part === 'diff' ? 'diff' : view
   const hints =
-    part === 'diff'
-      ? ['↑/↓ scroll', 'select and copy text', 'Enter on the file in Changes opens it']
-      : view === 'repos'
-        ? ['j/k move', 'Enter show its changes', 'Tab Changes', 'R refresh']
-        : ['j/k move', entry?.sync ? 'Enter sync' : 'Enter open file', 'Tab Repos', 'R refresh']
+    view === 'repos'
+      ? ['j/k move', 'Enter show its changes', 'Tab Changes', 'R refresh']
+      : view === 'log'
+        ? ['j/k move', 'Enter show commit', 'l peek', 'Tab Repos', 'R refresh']
+        : ['j/k move', entry?.sync ? 'Enter sync' : 'Enter diff', 'l peek', 'o open file', 'Tab Log', 'R refresh']
+  useHints(id, hints)
 
   useEffect(() => {
     side.current?.querySelectorAll('.row.selected').forEach((r) => r.scrollIntoView({ block: 'nearest' }))
-  }, [cursors.repos, cursors.changes])
+  }, [cursors.repos, cursors.changes, cursors.log])
 
-  const label = (c: Change | undefined, which: 'old' | 'new') =>
-    c ? ` ${which === 'old' ? (c.old ?? c.path) : c.path}  (${which === 'old' ? 'last commit' : 'working tree'})` : ' '
-
-  const list = (which: 'repos' | 'changes', title: React.ReactNode, items: Row[]) => (
+  const list = (which: View, title: ReactNode, items: Row[]) => (
     <div className={`scm-list scm-${which} ${view === which ? 'on' : ''}`}>
       <div className="scm-title" onMouseDown={() => setView(which)}>
         {title}
       </div>
       <div className="scm-rows">
-        {items.map((r, i) => (
-          <div
-            key={i}
-            className={`row ${i === cursors[which] ? 'selected' : ''}`}
-            onMouseDown={() => {
-              setView(which)
-              if (r.item) setSel((s) => ({ ...s, [which]: i }))
-            }}
-            onDoubleClick={() => r.item?.change && choose(r.item)}
-            onClick={() => {
-              if (r.item?.sync) runSync()
-              else if (r.item?.repo) selectRepo(r.item.repo)
-            }}
-          >
-            {r.text}
-          </div>
-        ))}
+        {items.map((r, i) => {
+          const c = r.item?.change
+          return (
+            <div
+              key={r.key}
+              title={r.title}
+              className={`row ${i === cursors[which] ? 'selected' : ''}`}
+              style={r.indent ? { paddingLeft: `calc(1ch + ${r.indent * 12}px)` } : undefined}
+              onMouseDown={() => {
+                setView(which)
+                if (r.item) setSel((s) => ({ ...s, [which]: i }))
+              }}
+              onClick={() => r.item && choose(r.item, { preview: true, focus: false })}
+              onDoubleClick={() => (c || r.item?.commit) && choose(r.item, {})}
+            >
+              {r.node}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 
   return (
     <div className="scm">
-      <div className="scm-body">
-        <div
-          className="scm-side"
-          ref={side}
-          tabIndex={0}
-          onKeyDown={onKeyDown}
-          onFocus={() => setPart('side')}
-          style={sideStyle(dragged) ?? { width: `${sideWidth}ch` }}
-        >
-          {list('repos', 'Repos', repoRows)}
-          {list(
-            'changes',
-            <>
-              Changes{repo && <span className="scm-repo">   {repo.name}</span>}
-            </>,
-            changeRows,
-          )}
-        </div>
-        <SideSplitter side="git" target={side} />
-        <div className="scm-diff" onFocus={() => setPart('diff')}>
-          <div className="scm-labels">
-            <div>{label(shownChange, 'old')}</div>
-            <div>{label(shownChange, 'new')}</div>
-          </div>
-          <div className="scm-editor">
-            <div ref={diffHost} style={{ position: 'absolute', inset: 0, display: shownChange ? undefined : 'none' }} />
-          </div>
-        </div>
+      <div className="scm-side" ref={side} tabIndex={0} onKeyDown={onKeyDown}>
+        {list('repos', 'REPOSITORIES', repoRows)}
+        {list(
+          'changes',
+          <>
+            CHANGES{repo && <span className="scm-repo">{'  ' + repo.name}</span>}
+          </>,
+          changeRows,
+        )}
+        {repo && list('log', 'LOG', logRows)}
       </div>
-      <Hints items={hints} />
     </div>
   )
 }

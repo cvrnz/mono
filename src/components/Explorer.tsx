@@ -1,18 +1,15 @@
 import { Menu } from '@tauri-apps/api/menu'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { agentFor, type Entry } from '../lib/agent'
-import { openFile } from '../lib/actions'
+import { openFile, type OpenOptions } from '../lib/actions'
 import { copyText, errorText } from '../lib/bridge'
-import { iconFor } from '../lib/fileIcons'
 import { choose, prompt, toast } from '../lib/dialogs'
-import { languageFor, monaco } from '../lib/monaco'
 import { register } from '../lib/panes'
-import { useParts } from '../lib/parts'
 import { basename, dirname, isInside, join, pretty } from '../lib/paths'
 import { keyLabel } from '../lib/commands'
 import * as S from '../lib/store'
-import Hints from './Hints'
-import SideSplitter, { sideStyle, useSideWidth } from './SideSplitter'
+import FileIcon from './FileIcon'
+import { useHints } from './Hints'
 
 const neverShow = new Set(['.git', '.DS_Store'])
 
@@ -45,11 +42,6 @@ function Chevron({ open }: { open: boolean }) {
   )
 }
 
-function FileIcon({ n, open, root }: { n: { name: string; path: string; dir: boolean }; open: boolean; root?: boolean }) {
-  const src = iconFor(n.name, n.path, n.dir, open, root)
-  return src ? <img className="ficon" src={src} alt="" draggable={false} /> : <span className="ficon" />
-}
-
 function copyName(name: string, dir: boolean, n: number): string {
   const dot = dir ? -1 : name.lastIndexOf('.')
   const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, '']
@@ -65,16 +57,16 @@ export default function Explorer(props: Props) {
 function Tree({ tab, active, root, home }: Props & { root: string; home: string }) {
   const project = S.useProjectId()
   const agent = useMemo(() => agentFor(project), [project])
-  const reveal = tab.reveal
+  const activePath = S.useProject((p) => {
+    const t = p.tabs.find((x) => x.id === p.active)
+    return t?.kind === 'file' ? t.path : t?.kind === 'diff' ? join(t.repo, t.change.path) : null
+  })
+  const reveal = active ? activePath : null
   const [children, setChildren] = useState<Map<string, Entry[]>>(new Map())
   const [expanded, setExpanded] = useState<Set<string>>(new Set([root]))
   const [selected, setSelected] = useState<string>(root)
   const [error, setError] = useState('')
   const tree = useRef<HTMLDivElement>(null)
-  const previewHost = useRef<HTMLDivElement>(null)
-  const previewRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
-  const [previewNote, setPreviewNote] = useState('')
-  const treeWidth = useSideWidth('explorer')
   const [moving, setMoving] = useState<string | null>(null)
   const [dragging, setDragging] = useState<{ from: string; over: string | null } | null>(null)
   const clipped = useClip()
@@ -118,37 +110,18 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
   }, [active, loadChanges])
 
   useEffect(() => {
-    const dirs = [root]
-    if (reveal && isInside(reveal, root) && reveal !== root) {
-      for (let d = dirname(reveal); d !== root && isInside(d, root); d = dirname(d)) dirs.push(d)
-    }
-    setExpanded((s) => new Set([...s, ...dirs]))
-    Promise.all(dirs.map(load)).then(() => {
-      if (reveal && isInside(reveal, root)) setSelected(reveal)
-    })
+    load(root)
+  }, [root, load])
+
+  useEffect(() => {
+    if (!reveal || !isInside(reveal, root) || reveal === root) return
+    const dirs: string[] = []
+    for (let d = dirname(reveal); d !== root && isInside(d, root); d = dirname(d)) dirs.push(d)
+    setExpanded((s) => (dirs.every((d) => s.has(d)) ? s : new Set([...s, root, ...dirs])))
+    Promise.all(dirs.filter((d) => !children.has(d)).map(load)).then(() => setSelected(reveal))
   }, [root, reveal, load])
 
-  const { part, setPart, list: parts, nav } = useParts('tree')
-  parts.current = [
-    { name: 'tree', focus: () => tree.current?.focus() },
-    ...(previewNote ? [] : [{ name: 'preview', focus: () => previewRef.current?.focus() }]),
-  ]
-  useEffect(() => register(tab.id, { focus: () => tree.current?.focus(), ...nav }), [tab.id, nav])
-  useEffect(() => {
-    if (active) requestAnimationFrame(() => tree.current?.focus())
-  }, [active])
-  useEffect(() => {
-    S.setPaneStatus(tab.id, { mode: 'normal', items: [pretty(root, '', home)] })
-  }, [tab.id, root, home])
-  useEffect(
-    () => () =>
-      S.set((s) => {
-        const status = { ...s.status }
-        delete status[tab.id]
-        return { status }
-      }),
-    [tab.id],
-  )
+  useEffect(() => register(tab.id, { focus: () => tree.current?.focus() }), [tab.id])
 
   const nodes = useMemo(() => {
     const out: Node[] = [{ path: root, name: pretty(root, '', home), dir: true, link: false, depth: 0 }]
@@ -167,79 +140,6 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
   const node = nodes[index]
 
   useEffect(() => {
-    const st = S.get().settings
-    const ed = monaco.editor.create(previewHost.current!, {
-      readOnly: true,
-      domReadOnly: true,
-      automaticLayout: true,
-      minimap: { enabled: false },
-      lineNumbers: st.lineNumbers ? 'on' : 'off',
-      lineDecorationsWidth: '2ch',
-      folding: false,
-      glyphMargin: false,
-      renderLineHighlight: 'none',
-      scrollBeyondLastLine: false,
-      fontFamily: st.fontFamily,
-      fontSize: st.fontSize,
-      overviewRulerLanes: 0,
-      scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false },
-      guides: { indentation: false },
-      stickyScroll: { enabled: false },
-      cursorStyle: 'line-thin',
-      matchBrackets: 'never',
-      occurrencesHighlight: 'off',
-    })
-    previewRef.current = ed
-    return () => {
-      const m = ed.getModel()
-      ed.dispose()
-      m?.dispose()
-    }
-  }, [])
-
-  useEffect(() => {
-    const ed = previewRef.current
-    if (!ed || !node) return
-    let stale = false
-    const timer = setTimeout(async () => {
-      const show = (text: string, path: string | null) => {
-        const prev = ed.getModel()
-        ed.setModel(monaco.editor.createModel(text, languageFor(path, text.split('\n', 1)[0])))
-        prev?.dispose()
-      }
-      if (node.dir) {
-        const list = children.get(node.path) ?? (await agent.list(node.path).catch(() => [] as Entry[]))
-        if (stale) return
-        setPreviewNote('')
-        show(list.filter((e) => !neverShow.has(e.name)).map((e) => e.name + (e.dir ? '/' : '')).join('\n'), null)
-        return
-      }
-      try {
-        const r = await agent.read(node.path, 512 * 1024)
-        if (stale) return
-        if (r.binary) {
-          setPreviewNote(`Binary file, ${r.size.toLocaleString()} bytes`)
-          show('', null)
-        } else if (r.tooLarge) {
-          setPreviewNote(`Too large to preview (${(r.size / 1048576).toFixed(1)} MB)`)
-          show('', null)
-        } else {
-          setPreviewNote('')
-          show(r.content, node.path)
-        }
-      } catch (err) {
-        if (stale) return
-        setPreviewNote(errorText(err))
-        show('', null)
-      }
-    }, 60)
-    return () => {
-      stale = true
-      clearTimeout(timer)
-    }
-  }, [node, children, agent])
-
-  useEffect(() => {
     tree.current?.querySelector('.row.selected')?.scrollIntoView({ block: 'nearest' })
   }, [index])
 
@@ -256,9 +156,9 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     })
   }
 
-  const activate = (n: Node) => {
+  const activate = (n: Node, opts: OpenOptions = { preview: true }) => {
     if (n.dir) toggle(n)
-    else openFile(n.path)
+    else openFile(n.path, undefined, undefined, opts)
   }
 
   const targetDir = (n: Node) => (n.dir ? n.path : dirname(n.path))
@@ -368,7 +268,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     const sep = { item: 'Separator' } as const
     const menu = await Menu.new({
       items: [
-        ...(n.dir ? [] : [{ text: 'Open', action: () => openFile(n.path) }, sep]),
+        ...(n.dir ? [] : [{ text: 'Open', action: () => activate(n, {}) }, sep]),
         { text: 'New File…', action: () => add(n) },
         { text: 'New Folder…', action: () => add(n, true) },
         sep,
@@ -521,11 +421,12 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     else if (k === 'PageDown') go(index + 15)
     else if (k === 'PageUp') go(index - 15)
     else if (k === 'Enter' || k === 'o') activate(node)
+    else if (k === ' ') activate(node, { preview: true, focus: false })
     else if (k === 'l' || k === 'ArrowRight') {
       if (node.dir) {
         if (expanded.has(node.path)) go(index + 1)
         else toggle(node, true)
-      } else activate(node)
+      } else activate(node, { preview: true, focus: false })
     } else if (k === 'h' || k === 'ArrowLeft') {
       if (node.dir && expanded.has(node.path) && node.path !== root) toggle(node, false)
       else if (node.path !== root) setSelected(dirname(node.path))
@@ -545,6 +446,13 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     e.stopPropagation()
   }
 
+  useHints(
+    tab.id,
+    moving
+      ? [`moving ${basename(moving)}`, '↑/↓ pick a folder', 'l/h expand/collapse', 'Enter move here', 'Esc cancel']
+      : ['j/k move', 'Enter open', 'l peek', 'a/A new file/folder', 'r rename', 'm move', 'x/c/p cut/copy/paste', `${keyLabel('Z')} undo`, 'd delete', 'y copy path', 'R refresh'],
+  )
+
   return (
     <div className="explorer">
         <div className="explorer-body">
@@ -553,9 +461,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
             ref={tree}
             tabIndex={0}
             onKeyDown={onKeyDown}
-            onFocus={() => setPart('tree')}
             onContextMenu={(e) => showMenu(e, nodes[0])}
-            style={sideStyle(treeWidth)}
           >
             {nodes.map((n, i) => (
               <div
@@ -572,14 +478,16 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
                 onClick={() => {
                   if (dragged.current) return
                   if (moving) setSelected(n.path)
-                  else if (n.dir && n.path !== root) toggle(n)
+                  else if (n.dir) {
+                    if (n.path !== root) toggle(n)
+                  } else activate(n, { preview: true, focus: false })
                 }}
                 onDoubleClick={() => {
                   if (moving) {
                     const from = moving
                     setMoving(null)
                     moveInto(from, destination(n))
-                  } else if (!n.dir) activate(n)
+                  } else if (!n.dir) activate(n, {})
                 }}
               >
                 {n.dir ? <Chevron open={expanded.has(n.path)} /> : <span className="chev" />}
@@ -601,21 +509,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
               {dragging.over && <span className="dim">{'  → '}{pretty(dragging.over, root, '') || basename(root) || '/'}</span>}
             </div>
           )}
-          <SideSplitter side="explorer" target={tree} />
-          <div className="explorer-preview" onFocus={() => setPart('preview')}>
-            <div ref={previewHost} style={{ position: 'absolute', inset: 0, visibility: previewNote ? 'hidden' : undefined }} />
-            {previewNote && <div className="note">{previewNote}</div>}
-          </div>
         </div>
-        <Hints
-          items={
-            moving
-              ? [`moving ${basename(moving)}`, '↑/↓ pick a folder', 'l/h expand/collapse', 'Enter move here', 'Esc cancel']
-              : part === 'preview'
-                ? ['↑/↓ scroll', 'select and copy text', 'Enter in the tree opens the file']
-                : ['j/k move', 'Enter open', 'l/h expand/collapse', 'a/A new file/folder', 'r rename', 'm move', 'x/c/p cut/copy/paste', `${keyLabel('Z')} undo`, 'd delete', 'y copy path', 'R refresh']
-          }
-        />
     </div>
   )
 }

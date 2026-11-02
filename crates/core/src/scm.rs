@@ -92,9 +92,13 @@ fn branch(repo: &Path) -> String {
     if !name.is_empty() {
         return name;
     }
+    let unborn = git(repo, false, &["symbolic-ref", "--short", "--quiet", "HEAD"]).text().trim().to_string();
+    if !unborn.is_empty() {
+        return unborn;
+    }
     let sha = git(repo, false, &["rev-parse", "--short", "HEAD"]).text().trim().to_string();
     if sha.is_empty() {
-        "no commits yet".into()
+        String::new()
     } else {
         format!("detached at {sha}")
     }
@@ -349,4 +353,76 @@ pub fn sync(a: RepoArgs) -> Result<Empty, String> {
         }
     }
     Ok(Empty {})
+}
+
+#[derive(Deserialize)]
+pub struct LogArgs {
+    repo: String,
+    limit: Option<usize>,
+}
+
+#[derive(Serialize)]
+pub struct Commit {
+    hash: String,
+    short: String,
+    author: String,
+    time: i64,
+    subject: String,
+    refs: String,
+}
+
+pub fn log(a: LogArgs) -> Vec<Commit> {
+    let limit = format!("-{}", a.limit.unwrap_or(200).min(2000));
+    let r = git(Path::new(&a.repo), false, &["log", &limit, "--format=%H%x1f%h%x1f%an%x1f%at%x1f%s%x1f%D%x1e"]);
+    if !r.ok {
+        return vec![];
+    }
+    r.text()
+        .split('\x1e')
+        .filter_map(|rec| {
+            let f: Vec<&str> = rec.trim_start_matches('\n').split('\x1f').collect();
+            let [hash, short, author, time, subject, refs] = f[..] else { return None };
+            Some(Commit {
+                hash: hash.into(),
+                short: short.into(),
+                author: author.into(),
+                time: time.parse().unwrap_or(0),
+                subject: subject.into(),
+                refs: refs.into(),
+            })
+        })
+        .collect()
+}
+
+#[derive(Deserialize)]
+pub struct ShowArgs {
+    repo: String,
+    hash: String,
+}
+
+#[derive(Serialize)]
+pub struct Shown {
+    text: String,
+}
+
+const MAX_SHOW: usize = 4 * 1024 * 1024;
+
+pub fn show(a: ShowArgs) -> Result<Shown, String> {
+    if a.hash.starts_with('-') {
+        return Err("not a commit".into());
+    }
+    let r = git(Path::new(&a.repo), false, &["show", "--stat", "--patch", "--format=fuller", "--no-color", &a.hash, "--"]);
+    if !r.ok {
+        return Err(r.stderr.trim().to_string());
+    }
+    let mut text = r.text();
+    if text.len() > MAX_SHOW {
+        let mut end = MAX_SHOW;
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        text.truncate(end);
+        text.push_str("\n… (cut off, too large to show)\n");
+    }
+    Ok(Shown { text })
 }

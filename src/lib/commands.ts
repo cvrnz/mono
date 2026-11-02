@@ -111,7 +111,9 @@ export const commands: Command[] = [
     desc: 'How many folders deep the git tab looks for repos (default 4)',
     run: setNumber('Git depth', 'gitDepth', 0, 12),
   },
-  { name: 'Explorer', desc: 'File explorer (and back)', keys: 'E', run: () => A.openExplorer() },
+  { name: 'Explorer', desc: 'Show or hide the Explorer sidebar', keys: 'E', run: () => A.openExplorer() },
+  { name: 'WordWrap', desc: 'Wrap long lines in editors (Option+Z)', aliases: ['wrap', 'ToggleWordWrap'], run: () => A.toggleWordWrap() },
+  { name: 'Sidebar', desc: 'Show or hide the sidebar', keys: 'B', aliases: ['ToggleSidebar'], run: () => A.toggleSidebar() },
   {
     name: 'Sql',
     desc: 'Query a database in a new tab (PostgreSQL, MySQL, SQL Server, SQLite)',
@@ -121,10 +123,10 @@ export const commands: Command[] = [
   },
   {
     name: 'Search',
-    desc: 'Search file names (and back)',
+    desc: 'Show or hide the Search sidebar',
     keys: 'F',
-    aliases: ['Files', 'Find'],
-    run: (args) => (args.trim() ? A.openSearch('files', args.trim()) : A.toggleSearch()),
+    aliases: ['Find'],
+    run: (args) => (args.trim() ? A.openSearch('text', args.trim()) : A.toggleSearch()),
   },
   {
     name: 'Grep',
@@ -132,7 +134,13 @@ export const commands: Command[] = [
     aliases: ['SearchText'],
     run: (args) => A.openSearch('text', args.trim()),
   },
-  { name: 'Git', desc: 'Source control (and back)', keys: 'G', aliases: ['SourceControl'], run: () => A.openScm() },
+  {
+    name: 'FindFile',
+    desc: 'Search file names',
+    aliases: ['Files', 'SearchFiles'],
+    run: (args) => A.openSearch('files', args.trim()),
+  },
+  { name: 'Git', desc: 'Show or hide the Git sidebar', keys: 'G', aliases: ['SourceControl'], run: () => A.openScm() },
   { name: 'Terminal', desc: 'Terminal in new tab', keys: 'T', aliases: ['terminal', 'term'], run: () => A.openTerminal() },
   { name: 'Split', desc: 'Terminal in horizontal split', keys: '\\', aliases: ['split', 'sp'], run: () => A.splitTerminal('below') },
   {

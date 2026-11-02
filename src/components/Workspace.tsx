@@ -1,5 +1,5 @@
 import { Button } from '@heroui/react'
-import { Fragment, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import * as A from '../lib/actions'
 import { disconnect, newProject, reconnect } from '../lib/connection'
 import { keyLabel } from '../lib/commands'
@@ -7,12 +7,16 @@ import { basename } from '../lib/paths'
 import * as S from '../lib/store'
 import CommandPalette from './CommandPalette'
 import ConnectScreen from './ConnectScreen'
+import CommitPane from './CommitPane'
+import DiffPane, { diffLabel } from './DiffPane'
+import Hints from './Hints'
 import EditorPane from './EditorPane'
 import Explorer from './Explorer'
 import ScmPane from './ScmPane'
 import SqlPane from './SqlPane'
 import SearchPane from './SearchPane'
 import TerminalPane from './TerminalPane'
+import SideSplitter, { sideStyle, useSideWidth } from './SideSplitter'
 import TabIcon from './TabIcon'
 import Welcome from './Welcome'
 import { noDrag, windowDrag, windowMenu } from '../lib/window'
@@ -28,6 +32,10 @@ export function tabLabel(tab: S.Tab): string {
       return 'Terminal'
     case 'file':
       return tab.path ? basename(tab.path) : 'Untitled'
+    case 'diff':
+      return diffLabel(tab)
+    case 'commit':
+      return tab.subject.length > 30 ? tab.subject.slice(0, 29) + '…' : tab.subject
     case 'explorer':
       return 'Explorer'
     case 'search':
@@ -135,10 +143,19 @@ function dragTab(e: React.MouseEvent, id: string) {
   window.addEventListener('mouseup', onUp)
 }
 
+function tabTitle(t: S.Tab, icon: boolean): string | undefined {
+  const preview = t.preview ? '\nPreview: opening another file replaces it. Double-click or edit to keep it.' : ''
+  if (t.kind === 'file' && t.path) return t.path + preview
+  if (t.kind === 'diff') return `${t.repo}/${t.change.path}${preview}`
+  if (t.kind === 'commit') return `${t.hash.slice(0, 10)}  ${t.subject}${preview}`
+  return icon ? tabLabel(t) : undefined
+}
+
 function TabBar() {
   const tabs = S.useStore((s) => s.tabs)
   const dragging = S.useStore((s) => s.draggingTab)
   const active = S.useStore((s) => s.active)
+  const side = S.useStore((s) => S.sidebar(s))
   const icons = S.useStore((s) => Boolean(s.settings.tabIcons))
   return (
     <div className="tabbar">
@@ -150,18 +167,22 @@ function TabBar() {
           <Fragment key={t.id}>
             <div
               data-id={fixed ? undefined : t.id}
-              className={`tab ${noDrag} ${t.id === active ? 'active' : ''} ${icon ? 'icon' : ''} ${t.id === dragging ? 'dragging' : ''}`}
-              title={t.kind === 'file' && t.path ? t.path : icon ? tabLabel(t) : undefined}
+              className={`tab ${noDrag} ${(fixed ? side === t.kind : t.id === active) ? 'active' : ''} ${icon ? 'icon' : ''} ${t.preview ? 'preview' : ''} ${t.id === dragging ? 'dragging' : ''}`}
+              title={tabTitle(t, icon)}
               onMouseDown={(e) => {
                 if (e.button === 1) {
                   e.preventDefault()
                   A.closeTab(t.id)
                 } else if (e.button === 0) {
                   e.preventDefault()
-                  A.activate(t.id)
-                  if (!fixed) dragTab(e, t.id)
+                  if (fixed) A.clickSidebarTab(t.kind as S.FixedKind)
+                  else {
+                    A.activate(t.id)
+                    dragTab(e, t.id)
+                  }
                 }
               }}
+              onDoubleClick={() => A.keepTab(t.id)}
             >
               {icon ? <TabIcon kind={t.kind as S.FixedKind} /> : tabLabel(t)}
               {t.kind === 'file' && t.dirty && <span className="dot"> ●</span>}
@@ -238,19 +259,78 @@ function content(tab: S.Tab, active: boolean, centered: boolean): ReactNode {
   switch (tab.kind) {
     case 'file':
       return <EditorPane tab={tab} active={active} centered={centered} />
+    case 'diff':
+      return <DiffPane tab={tab} active={active} />
+    case 'commit':
+      return <CommitPane tab={tab} active={active} />
     case 'terminal':
       return <TerminalPane id={tab.id} tabId={tab.id} cwd={tab.cwd} active={active} centered={centered} />
-    case 'scm':
-      return <ScmPane id={tab.id} active={active} />
     case 'welcome':
       return <Welcome id={tab.id} active={active} />
-    case 'explorer':
-      return <Explorer tab={tab} active={active} />
     case 'sql':
       return <SqlPane tab={tab} active={active} />
-    case 'search':
-      return <SearchPane tab={tab} active={active} />
+    default:
+      return null
   }
+}
+
+function sideContent(tab: S.Tab, shown: boolean): ReactNode {
+  switch (tab.kind) {
+    case 'explorer':
+      return <Explorer tab={tab} active={shown} />
+    case 'scm':
+      return <ScmPane id={tab.id} active={shown} />
+    case 'search':
+      return <SearchPane tab={tab} active={shown} />
+    default:
+      return null
+  }
+}
+
+function HintsBar() {
+  const [inSide, setInSide] = useState(false)
+  useEffect(() => {
+    const onFocus = () => setInSide(A.sidebarFocused())
+    document.addEventListener('focusin', onFocus)
+    return () => document.removeEventListener('focusin', onFocus)
+  }, [])
+  const items = S.useStore((s) => {
+    const kind = S.sidebar(s)
+    const side = kind ? s.tabs.find((t) => t.kind === kind) : undefined
+    const sideHints = side && s.hints[side.id]
+    const tabHints = s.active ? s.hints[s.active] : undefined
+    return inSide ? (sideHints ?? tabHints) : (tabHints ?? sideHints)
+  })
+  return items ? <Hints items={items} /> : null
+}
+
+function Sidebar() {
+  const projects = S.useStore((s) => s.projects)
+  const current = S.useStore((s) => s.project)
+  const kind = S.useStore((s) => S.sidebar(s))
+  const connected = S.useStore((s) => S.isConnected(s.conn))
+  const width = useSideWidth('sidebar')
+  const ref = useRef<HTMLDivElement>(null)
+  const open = Boolean(kind && connected)
+  return (
+    <>
+      <div className={`sidebar ${open ? '' : 'hidden'}`} ref={ref} style={sideStyle(width)}>
+        {projects.map((p) => (
+          <S.ProjectContext.Provider key={p.id} value={p.id}>
+            {p.tabs.filter(S.isFixed).map((tab) => {
+              const shown = p.id === current && tab.kind === kind
+              return (
+                <div key={tab.id} className={`side-view ${shown ? '' : 'hidden'}`}>
+                  {S.isConnected(p.conn) && sideContent(tab, shown)}
+                </div>
+              )
+            })}
+          </S.ProjectContext.Provider>
+        ))}
+      </div>
+      {open && <SideSplitter side="sidebar" target={ref} />}
+    </>
+  )
 }
 
 function ProjectPanes({ project, current }: { project: S.Project; current: boolean }) {
@@ -258,7 +338,7 @@ function ProjectPanes({ project, current }: { project: S.Project; current: boole
   const root = S.isConnected(project.conn) ? project.conn.hello.root : '/'
   return (
     <S.ProjectContext.Provider value={project.id}>
-      {tabs.flatMap((tab) => {
+      {tabs.filter((t) => !S.isFixed(t)).flatMap((tab) => {
         const ids = [tab.id, ...(tab.splits?.panes ?? [])]
         const shown = current && tab.id === active
         const focused = S.focusedPane(tab)
@@ -310,7 +390,11 @@ export default function Workspace() {
         <TabBar />
       </div>
       <div className="tabbar-spacer" />
-      <Panes />
+      <div className="main">
+        <Sidebar />
+        <Panes />
+      </div>
+      {connected && <HintsBar />}
       {connected && <StatusBar />}
       <LostBanner />
       {connected && palette && <CommandPalette mode={palette.mode} initial={palette.text ?? ''} />}

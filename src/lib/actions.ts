@@ -1,8 +1,9 @@
-import { agent } from './agent'
+import { agent, type Change, type Commit } from './agent'
 import { errorText, invoke } from './bridge'
 import { choose, prompt, toast } from './dialogs'
 import { pane } from './panes'
 import { saveSessionNow } from './session'
+import { updateSettings } from './settings'
 import { basename, join, normalize } from './paths'
 import * as S from './store'
 
@@ -48,19 +49,56 @@ export function focusActive() {
   requestAnimationFrame(() => pane(S.focusedPane(tab))?.focus())
 }
 
-export function openFile(path: string, line?: number, col?: number) {
-  path = normalize(path)
-  const existing = S.get().tabs.find((t) => t.kind === 'file' && t.path === path)
+export type OpenOptions = { preview?: boolean; focus?: boolean }
+
+export function sidebarFocused(): boolean {
+  return Boolean(document.activeElement?.closest('.sidebar'))
+}
+
+function show(tab: S.Tab, existing: S.Tab | undefined, opts: OpenOptions) {
+  const focus = opts.focus ?? true
+  if (focus && sidebarFocused()) (document.activeElement as HTMLElement).blur()
   if (existing) {
     S.set({ active: existing.id })
-    if (line) pane(existing.id)?.reveal?.(line, col)
-    focusActive()
-    return
+    if (existing.preview && !opts.preview) S.updateTab(existing.id, { preview: false })
+  } else if (opts.preview) {
+    const drop = new Set([S.get().tabs.find((t) => t.preview)?.id, emptySpot()?.id])
+    S.set((s) => ({ tabs: [...s.tabs.filter((t) => !drop.has(t.id)), tab], active: tab.id }))
+  } else {
+    const spot = emptySpot()
+    if (spot) replaceTab(spot.id, tab)
+    else insertTab(tab)
   }
-  const tab: S.FileTab = { id: S.newId(), kind: 'file', path, dirty: false, line, col }
-  const spot = emptySpot()
-  if (spot) replaceTab(spot.id, tab)
-  else insertTab(tab)
+  if (focus) focusActive()
+}
+
+export function openFile(path: string, line?: number, col?: number, opts: OpenOptions & { len?: number } = {}) {
+  path = normalize(path)
+  const existing = S.get().tabs.find((t) => t.kind === 'file' && t.path === path)
+  show({ id: S.newId(), kind: 'file', path, dirty: false, line, col, len: opts.len, preview: opts.preview }, existing, opts)
+  if (existing && line) pane(existing.id)?.reveal?.(line, col, opts.len)
+}
+
+export function openDiff(repo: string, change: Change, opts: OpenOptions = {}) {
+  const existing = S.get().tabs.find((t) => t.kind === 'diff' && t.repo === repo && t.change.path === change.path)
+  if (existing) S.updateTab(existing.id, { change })
+  show({ id: S.newId(), kind: 'diff', repo, change, preview: opts.preview }, existing, opts)
+}
+
+export function openCommit(repo: string, c: Commit, opts: OpenOptions = {}) {
+  const existing = S.get().tabs.find((t) => t.kind === 'commit' && t.repo === repo && t.hash === c.hash)
+  show({ id: S.newId(), kind: 'commit', repo, hash: c.hash, subject: c.subject, preview: opts.preview }, existing, opts)
+}
+
+export function toggleWordWrap() {
+  const wordWrap = !S.get().settings.wordWrap
+  updateSettings({ wordWrap })
+  toast(wordWrap ? 'Word wrap on' : 'Word wrap off')
+}
+
+export function keepTab(id: string) {
+  const tab = S.get().tabs.find((t) => t.id === id)
+  if (tab?.preview) S.updateTab(id, { preview: false })
 }
 
 export function newTab() {
@@ -93,46 +131,47 @@ export function splitTerminal(dir: S.Splits['dir']) {
   S.updateTab(tab.id, { splits: { dir, panes }, focus: id })
 }
 
-const back = new Map<string, string>()
+function sidebarTab(kind = S.sidebar()): S.Tab | undefined {
+  return kind ? S.get().tabs.find((t) => t.kind === kind) : undefined
+}
+
+export function focusSidebar() {
+  const tab = sidebarTab()
+  if (tab) requestAnimationFrame(() => pane(tab.id)?.focus())
+}
+
+export function showSidebar(kind: S.FixedKind | null, focus = true) {
+  S.set({ palette: null })
+  if (S.sidebar() !== kind) updateSettings({ sidebar: kind ?? 'none' })
+  if (kind && focus) focusSidebar()
+  else if (!kind) focusActive()
+}
+
+export function clickSidebarTab(kind: S.FixedKind) {
+  showSidebar(S.sidebar() === kind ? null : kind)
+}
 
 function toggleFixed(kind: S.FixedKind) {
-  const s = S.get()
-  const target = s.tabs.find((t) => t.kind === kind)
-  if (!target) return
-  if (s.active === target.id) {
-    S.set({ palette: null })
-    leaveFixed(target)
-    return
-  }
-  showFixed(target)
-}
-
-function showFixed(target: S.Tab) {
-  const s = S.get()
-  S.set({ palette: null })
-  if (s.active !== target.id && s.active) back.set(`${s.project}:${target.kind}`, s.active)
-  const current = S.activeTab()
-  if (target.kind === 'explorer' && current?.kind === 'file' && current.path) S.updateTab(target.id, { reveal: current.path })
-  activate(target.id)
-}
-
-export function leaveFixed(target: S.Tab) {
-  const s = S.get()
-  const prev = s.tabs.find((t) => t.id === back.get(`${s.project}:${target.kind}`) && t.id !== target.id) ?? s.tabs.find((t) => !S.isFixed(t))
-  if (prev) activate(prev.id)
-  else focusActive()
+  showSidebar(S.sidebar() === kind ? null : kind)
 }
 
 export const openExplorer = () => toggleFixed('explorer')
 export const openScm = () => toggleFixed('scm')
 export const toggleSearch = () => toggleFixed('search')
+export const toggleSidebar = () => showSidebar(S.sidebar() ? null : lastSidebar)
+
+let lastSidebar: S.FixedKind = 'explorer'
+S.subscribe(() => {
+  const kind = S.sidebar()
+  if (kind) lastSidebar = kind
+})
 
 let asks = 0
 export function openSearch(kind: S.SearchKind, text = '') {
-  const target = S.get().tabs.find((t) => t.kind === 'search')
+  const target = sidebarTab('search')
   if (!target) return
   S.updateTab(target.id, { ask: { kind, text, n: ++asks } })
-  showFixed(target)
+  showSidebar('search')
 }
 
 export function openSql(conn?: string) {
@@ -140,7 +179,8 @@ export function openSql(conn?: string) {
 }
 
 export function cycleTab(step: number) {
-  const { tabs, active } = S.get()
+  const { active } = S.get()
+  const tabs = S.get().tabs.filter((t) => !S.isFixed(t))
   if (tabs.length === 0) return
   const i = tabs.findIndex((t) => t.id === active)
   activate(tabs[(i + step + tabs.length) % tabs.length].id)
@@ -154,12 +194,13 @@ export function focusPane(tabId: string, paneId: string) {
 export function cyclePane(step: number) {
   const tab = S.activeTab()
   if (!tab) return
-  const focused = S.focusedPane(tab)
+  const side = sidebarTab()
+  const focused = side && sidebarFocused() ? side.id : S.focusedPane(tab)
   if (pane(focused)?.step?.(step)) return
-  const all = [tab.id, ...(tab.splits?.panes ?? [])]
+  const all = [...(side ? [side.id] : []), tab.id, ...(tab.splits?.panes ?? [])]
   const i = all.indexOf(focused)
   const next = all[(i + step + all.length) % all.length]
-  if (next !== focused) S.updateTab(tab.id, { focus: next })
+  if (next !== side?.id && next !== S.focusedPane(tab)) S.updateTab(tab.id, { focus: next })
   requestAnimationFrame(() => {
     const h = pane(next)
     if (h?.enter) h.enter(step)
