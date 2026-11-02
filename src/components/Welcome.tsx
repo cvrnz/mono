@@ -4,67 +4,9 @@ import { keyLabel } from '../lib/commands'
 import { register } from '../lib/panes'
 import { currentTheme } from '../lib/settings'
 import * as S from '../lib/store'
+import { type Cell, type Picked, pick } from '../lib/ascii'
 
 const tickMs = 60
-
-const banners = [
-  [
-    " __  __",
-    "|  \\/  | ___  _ __   ___",
-    "| |\\/| |/ _ \\| '_ \\ / _ \\",
-    "| |  | | (_) | | | | (_) |",
-    "|_|  |_|\\___/|_| |_|\\___/",
-  ],
-  [
-    "    __  ___",
-    "   /  |/  /___  ____  ____",
-    "  / /|_/ / __ \\/ __ \\/ __ \\",
-    " / /  / / /_/ / / / / /_/ /",
-    "/_/  /_/\\____/_/ /_/\\____/",
-  ],
-  [
-    " __  __",
-    "|  \\/  |___ _ _  ___",
-    "| |\\/| / _ \\ ' \\/ _ \\",
-    "|_|  |_\\___/_||_\\___/",
-  ],
-  [
-    "███╗   ███╗ ██████╗ ███╗   ██╗ ██████╗",
-    "████╗ ████║██╔═══██╗████╗  ██║██╔═══██╗",
-    "██╔████╔██║██║   ██║██╔██╗ ██║██║   ██║",
-    "██║╚██╔╝██║██║   ██║██║╚██╗██║██║   ██║",
-    "██║ ╚═╝ ██║╚██████╔╝██║ ╚████║╚██████╔╝",
-    "╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═══╝ ╚═════╝",
-  ],
-  [
-    "___  ___",
-    "|  \\/  |",
-    "| .  . | ___  _ __   ___",
-    "| |\\/| |/ _ \\| '_ \\ / _ \\",
-    "| |  | | (_) | | | | (_) |",
-    "\\_|  |_/\\___/|_| |_|\\___/",
-  ],
-]
-
-type Style = 'plain' | 'solid' | 'gradient' | 'rainbow'
-type Art = { lines: string[]; width: number; height: number; style: Style; color: number; offset: number }
-
-const width = (lines: string[]) => Math.max(0, ...lines.map((l) => [...l].length))
-
-function pick(maxWidth: number, maxHeight: number): Art | null {
-  const fits = banners.filter((lines) => lines.length <= maxHeight && width(lines) <= maxWidth)
-  if (fits.length === 0) return null
-  const lines = fits[Math.floor(Math.random() * fits.length)]
-  const styles: Style[] = ['plain', 'plain', 'solid', 'gradient', 'rainbow']
-  return {
-    lines,
-    width: width(lines),
-    height: lines.length,
-    style: styles[Math.floor(Math.random() * styles.length)],
-    color: Math.floor(Math.random() * 7),
-    offset: Math.floor(Math.random() * 12),
-  }
-}
 
 function palette(): string[] {
   const p = currentTheme()
@@ -73,38 +15,20 @@ function palette(): string[] {
 
 type Run = { text: string; color: string }
 
-function paint(line: string, row: number, art: Art, tick: number, colors: string[], shine: number | null): Run[] {
-  const chars = [...line]
-  const dim = 'var(--dim)'
-  const color = (col: number): string => {
-    if (shine !== null && col >= shine - row && col < shine - row + 8) return 'var(--fg)'
-    switch (art.style) {
-      case 'solid':
-        return colors[art.color % colors.length]
-      case 'gradient': {
-        const span = Math.min(colors.length, art.height)
-        return colors[(art.offset + Math.floor((row * span) / art.height)) % colors.length]
-      }
-      case 'rainbow':
-        return colors[((Math.floor((col + row + art.offset - tick / 2) / 3) % colors.length) + colors.length) % colors.length]
-      default:
-        return dim
-    }
+function runs(row: Cell[]): Run[] {
+  const out: Run[] = []
+  for (const { ch, color } of row) {
+    const last = out[out.length - 1]
+    if (last && (last.color === color || ch === ' ')) last.text += ch
+    else out.push({ text: ch, color })
   }
-  const runs: Run[] = []
-  chars.forEach((ch, col) => {
-    const c = color(col)
-    const last = runs[runs.length - 1]
-    if (last && last.color === c) last.text += ch
-    else runs.push({ text: ch, color: c })
-  })
-  return runs
+  return out
 }
 
 export default function Welcome({ id, active }: { id: string; active: boolean }) {
   const box = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ cols: 0, rows: 0 })
-  const [art, setArt] = useState<Art | null>(null)
+  const [art, setArt] = useState<Picked | null>(null)
   const [tick, setTick] = useState(0)
   const fontSize = S.useStore((s) => s.settings.fontSize)
   const themeName = S.useStore((s) => s.previewTheme ?? s.settings.theme)
@@ -148,7 +72,7 @@ export default function Welcome({ id, active }: { id: string; active: boolean })
   }, [fontSize])
 
   useEffect(() => {
-    if (area > 0 && (!art || art.height > area || art.width > maxWidth)) {
+    if (area > 0 && (!art || art.piece.height > area || art.piece.width > maxWidth)) {
       setArt(pick(maxWidth, area))
       setTick(0)
     }
@@ -175,7 +99,7 @@ export default function Welcome({ id, active }: { id: string; active: boolean })
   }, [id])
 
   const another = () => {
-    setArt(area > 0 ? pick(maxWidth, area) : null)
+    setArt(area > 0 ? pick(maxWidth, area, art?.kind) : null)
     setTick(0)
   }
 
@@ -187,18 +111,8 @@ export default function Welcome({ id, active }: { id: string; active: boolean })
     e.preventDefault()
   }
 
-  const shown = area > 0 ? art : null
   const colors = useMemo(() => palette(), [themeName])
-  let lines: Run[][] = []
-  if (shown) {
-    const reveal = tick * 4
-    const revealed = reveal >= shown.width + shown.height
-    const sweep = revealed && shown.style === 'plain' ? (((tick - 30) % 80) + 80) % 80 * 2 - 10 : null
-    lines = shown.lines.map((line, r) => {
-      const visible = revealed ? line : [...line].slice(0, Math.max(0, reveal - r)).join('')
-      return paint(visible, r, shown, tick, colors, sweep)
-    })
-  }
+  const lines = area > 0 && art ? art.piece.frame(tick, colors).map(runs) : []
 
   const lh = '1.2em'
   return (
