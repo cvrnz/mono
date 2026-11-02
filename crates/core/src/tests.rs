@@ -42,6 +42,20 @@ fn files_create_write_read_list_rename_stat() {
 }
 
 #[test]
+fn copy_copies_folders_and_refuses_overwrites() {
+    let (s, _) = service();
+    let (_d, w) = dir();
+    s.call("fs.write", json!({ "path": format!("{w}/a/b/c.txt"), "content": "hi" })).unwrap();
+    s.call("fs.copy", json!({ "from": format!("{w}/a"), "to": format!("{w}/a copy") })).unwrap();
+    assert_eq!(s.call("fs.read", json!({ "path": format!("{w}/a copy/b/c.txt") })).unwrap()["content"], json!("hi"));
+    assert_eq!(s.call("fs.read", json!({ "path": format!("{w}/a/b/c.txt") })).unwrap()["content"], json!("hi"));
+    let e = s.call("fs.copy", json!({ "from": format!("{w}/a"), "to": format!("{w}/a copy") })).unwrap_err();
+    assert!(e.contains("already exists"), "{e}");
+    let e = s.call("fs.copy", json!({ "from": format!("{w}/a"), "to": format!("{w}/a/b/a") })).unwrap_err();
+    assert!(e.contains("into itself"), "{e}");
+}
+
+#[test]
 fn delete_refuses_roots_and_relative_paths() {
     let (s, _) = service();
     let (_d, w) = dir();

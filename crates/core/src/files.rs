@@ -204,6 +204,39 @@ pub fn rename(a: RenameArgs) -> Result<Empty, String> {
     Ok(Empty {})
 }
 
+pub fn copy(a: RenameArgs) -> Result<Empty, String> {
+    let (from, to) = (clean(Path::new(&a.from)), clean(Path::new(&a.to)));
+    if fs::symlink_metadata(&to).is_ok() {
+        return Err(format!("{} already exists", base(&to)));
+    }
+    if to.starts_with(&from) {
+        return Err(format!("can't copy {} into itself", base(&from)));
+    }
+    if let Some(parent) = to.parent() {
+        fs::create_dir_all(parent).map_err(|e| err(e, parent))?;
+    }
+    copy_tree(&from, &to)?;
+    Ok(Empty {})
+}
+
+fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
+    let meta = fs::symlink_metadata(from).map_err(|e| err(e, from))?;
+    if meta.file_type().is_symlink() {
+        let target = fs::read_link(from).map_err(|e| err(e, from))?;
+        std::os::unix::fs::symlink(target, to).map_err(|e| err(e, to))?;
+    } else if meta.is_dir() {
+        fs::create_dir(to).map_err(|e| err(e, to))?;
+        for entry in fs::read_dir(from).map_err(|e| err(e, from))? {
+            let entry = entry.map_err(|e| err(e, from))?;
+            copy_tree(&entry.path(), &to.join(entry.file_name()))?;
+        }
+        fs::set_permissions(to, meta.permissions()).map_err(|e| err(e, to))?;
+    } else {
+        fs::copy(from, to).map_err(|e| err(e, from))?;
+    }
+    Ok(())
+}
+
 pub fn remove(a: PathArgs) -> Result<Empty, String> {
     let target = clean(Path::new(&a.path));
     if !target.is_absolute() || target.parent().is_none() {

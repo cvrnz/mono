@@ -32,6 +32,7 @@ export function agentFor(project: string | (() => string)) {
     write: (path: string, content: string) => call<void>(conn(), 'fs.write', { path, content }),
     create: (path: string, dir: boolean) => call<void>(conn(), 'fs.create', { path, dir }),
     rename: (from: string, to: string) => call<void>(conn(), 'fs.rename', { from, to }),
+    copy: (from: string, to: string) => call<void>(conn(), 'fs.copy', { from, to }),
     remove: (path: string) => call<void>(conn(), 'fs.delete', { path }),
     stat: (path: string) => call<{ exists: boolean; dir: boolean }>(conn(), 'fs.stat', { path }),
     files: (root: string) => call<{ files: string[]; truncated: boolean }>(conn(), 'fs.files', { root }),

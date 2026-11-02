@@ -38,6 +38,7 @@ impl Service {
             "fs.write" => json(files::write(args(params)?)?),
             "fs.create" => json(files::create(args(params)?)?),
             "fs.rename" => json(files::rename(args(params)?)?),
+            "fs.copy" => json(files::copy(args(params)?)?),
             "fs.delete" => json(files::remove(args(params)?)?),
             "fs.stat" => json(files::stat(args(params)?)?),
             "fs.files" => json(search::files(args(params)?)),

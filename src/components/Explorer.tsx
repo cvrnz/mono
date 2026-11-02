@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Menu } from '@tauri-apps/api/menu'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { agentFor, type Entry } from '../lib/agent'
 import { openFile } from '../lib/actions'
 import { copyText, errorText } from '../lib/bridge'
+import { iconFor } from '../lib/fileIcons'
 import { choose, prompt, toast } from '../lib/dialogs'
 import { languageFor, monaco } from '../lib/monaco'
 import { register } from '../lib/panes'
@@ -18,6 +20,41 @@ type Node = { path: string; name: string; dir: boolean; link: boolean; depth: nu
 
 type Props = { tab: S.ExplorerTab; active: boolean }
 type Move = { from: string; to: string }
+type Clip = { op: 'copy' | 'cut'; path: string; project: string }
+
+let clip: Clip | null = null
+const clipListeners = new Set<() => void>()
+const setClip = (c: Clip | null) => {
+  clip = c
+  clipListeners.forEach((f) => f())
+}
+const useClip = () =>
+  useSyncExternalStore(
+    (f) => {
+      clipListeners.add(f)
+      return () => clipListeners.delete(f)
+    },
+    () => clip,
+  )
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg className={`chev ${open ? 'open' : ''}`} viewBox="0 0 16 16" aria-hidden>
+      <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function FileIcon({ n, open, root }: { n: { name: string; path: string; dir: boolean }; open: boolean; root?: boolean }) {
+  const src = iconFor(n.name, n.path, n.dir, open, root)
+  return src ? <img className="ficon" src={src} alt="" draggable={false} /> : <span className="ficon" />
+}
+
+function copyName(name: string, dir: boolean, n: number): string {
+  const dot = dir ? -1 : name.lastIndexOf('.')
+  const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, '']
+  return `${stem} copy${n > 1 ? ` ${n}` : ''}${ext}`
+}
 
 export default function Explorer(props: Props) {
   const hello = S.useProject((p) => (S.isConnected(p.conn) ? p.conn.hello : null))
@@ -40,6 +77,9 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
   const treeWidth = useSideWidth('explorer')
   const [moving, setMoving] = useState<string | null>(null)
   const [dragging, setDragging] = useState<{ from: string; over: string | null } | null>(null)
+  const clipped = useClip()
+  const cutPath = clipped?.op === 'cut' && clipped.project === project ? clipped.path : null
+  S.useStore((s) => s.previewTheme ?? s.settings.theme)
 
   const load = useCallback(async (dir: string): Promise<Entry[]> => {
     try {
@@ -223,12 +263,12 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
 
   const targetDir = (n: Node) => (n.dir ? n.path : dirname(n.path))
 
-  const add = async () => {
-    const dir = targetDir(node)
+  const add = async (n: Node = node, folder = false) => {
+    const dir = targetDir(n)
     const rel = dir === root ? '' : pretty(dir, root, '') + '/'
-    const value = await prompt('New file', rel, 'End with / to make a folder')
+    const value = await prompt(folder ? 'New folder' : 'New file', rel, folder ? undefined : 'End with / to make a folder')
     if (!value?.trim()) return
-    const isDir = value.trim().endsWith('/')
+    const isDir = folder || value.trim().endsWith('/')
     const path = join(root, value.trim())
     try {
       await agent.create(path, isDir)
@@ -253,33 +293,97 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     setSelected(path)
   }
 
-  const rename = async () => {
-    if (node.path === root) return
-    const rel = pretty(node.path, root, '')
+  const rename = async (n: Node = node) => {
+    if (n.path === root) return
+    const rel = pretty(n.path, root, '')
     const start = rel.lastIndexOf('/') + 1
-    const dot = node.dir ? -1 : rel.lastIndexOf('.')
+    const dot = n.dir ? -1 : rel.lastIndexOf('.')
     const value = await prompt('Rename', rel, 'A new name, or a new path to move it', [start, dot > start ? dot : rel.length])
     if (!value?.trim() || value.trim() === rel) return
-    await relocate(node.path, join(root, value.trim()))
+    await relocate(n.path, join(root, value.trim()))
   }
 
-  const remove = async () => {
-    if (node.path === root) return
-    const v = await choose(`Delete ${node.name}?`, node.dir ? 'The folder and everything in it will be deleted.' : 'The file will be deleted.', [
+  const remove = async (n: Node = node) => {
+    if (n.path === root) return
+    const at = nodes.indexOf(n)
+    const v = await choose(`Delete ${n.name}?`, n.dir ? 'The folder and everything in it will be deleted.' : 'The file will be deleted.', [
       { label: 'Cancel', value: 'cancel', variant: 'tertiary' },
       { label: 'Delete', value: 'delete', variant: 'danger' },
     ])
     if (v !== 'delete') return
     try {
-      await agent.remove(node.path)
+      await agent.remove(n.path)
     } catch (err) {
       toast(errorText(err), 'error')
       return
     }
-    const next = nodes[index + 1] && !isInside(nodes[index + 1].path, node.path) ? nodes[index + 1] : nodes[index - 1]
-    await load(dirname(node.path))
+    if (cutPath && isInside(cutPath, n.path)) setClip(null)
+    const next = nodes[at + 1] && !isInside(nodes[at + 1].path, n.path) ? nodes[at + 1] : nodes[at - 1]
+    await load(dirname(n.path))
     loadChanges()
     if (next) setSelected(next.path)
+  }
+
+  const putOnClip = (op: Clip['op'], n: Node = node) => {
+    if (n.path === root) return
+    setClip({ op, path: n.path, project })
+    toast(`${op === 'cut' ? 'Cut' : 'Copied'} ${n.name}, paste it into a folder`)
+  }
+
+  const paste = async (n: Node = node) => {
+    if (!clipped || clipped.project !== project) return
+    const dir = targetDir(n)
+    const { op, path: from } = clipped
+    if (op === 'cut') {
+      if (dirname(from) === dir) return
+      setClip(null)
+      await moveInto(from, dir)
+      return
+    }
+    try {
+      const dirFrom = (await agent.stat(from)).dir
+      let to = join(dir, basename(from))
+      for (let i = 1; (await agent.stat(to)).exists; i++) to = join(dir, copyName(basename(from), dirFrom, i))
+      await agent.copy(from, to)
+      await reloadAround(to)
+      loadChanges()
+      toast(`Pasted ${basename(to)} into ${pretty(dir, '', home)}`)
+    } catch (err) {
+      toast(errorText(err), 'error')
+    }
+  }
+
+  const copyPath = (n: Node, relative: boolean) => {
+    const text = relative ? pretty(n.path, root, '') || '.' : n.path
+    copyText(text)
+    toast(`Copied ${text}`)
+  }
+
+  const showMenu = async (e: React.MouseEvent, n: Node) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setSelected(n.path)
+    const isRoot = n.path === root
+    const canPaste = !!clipped && clipped.project === project
+    const sep = { item: 'Separator' } as const
+    const menu = await Menu.new({
+      items: [
+        ...(n.dir ? [] : [{ text: 'Open', action: () => openFile(n.path) }, sep]),
+        { text: 'New File…', action: () => add(n) },
+        { text: 'New Folder…', action: () => add(n, true) },
+        sep,
+        { text: 'Cut', accelerator: 'CmdOrCtrl+X', enabled: !isRoot, action: () => putOnClip('cut', n) },
+        { text: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: !isRoot, action: () => putOnClip('copy', n) },
+        { text: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: canPaste, action: () => paste(n) },
+        sep,
+        { text: 'Copy Path', action: () => copyPath(n, false) },
+        { text: 'Copy Relative Path', action: () => copyPath(n, true) },
+        sep,
+        { text: 'Rename…', enabled: !isRoot, action: () => rename(n) },
+        { text: 'Delete', enabled: !isRoot, action: () => remove(n) },
+      ],
+    })
+    await menu.popup()
   }
 
   const history = useRef<{ undo: Move[]; redo: Move[] }>({ undo: [], redo: [] })
@@ -349,7 +453,8 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
       requestAnimationFrame(() => place(ev))
       const row = rowAt(ev)
       const target = row ? nodes.find((m) => m.path === row.dataset.path) : undefined
-      const dir = target ? destination(target) : null
+      const inTree = !row && (document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null)?.closest('.explorer-tree') === tree.current
+      const dir = target ? destination(target) : inTree ? root : null
       if (dir !== over) {
         over = dir
         clearTimeout(opener)
@@ -388,6 +493,13 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
       undo(e.shiftKey || e.code === 'KeyY')
       return
     }
+    if (mod && !e.altKey && !e.shiftKey && !moving && ['KeyX', 'KeyC', 'KeyV'].includes(e.code)) {
+      e.preventDefault()
+      e.stopPropagation()
+      if (e.code === 'KeyV') paste()
+      else putOnClip(e.code === 'KeyX' ? 'cut' : 'copy')
+      return
+    }
     if (e.metaKey || e.ctrlKey || e.altKey) return
     const k = e.key
     const go = (i: number) => setSelected(nodes[Math.max(0, Math.min(nodes.length - 1, i))].path)
@@ -418,6 +530,10 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
       if (node.dir && expanded.has(node.path) && node.path !== root) toggle(node, false)
       else if (node.path !== root) setSelected(dirname(node.path))
     } else if (k === 'a') add()
+    else if (k === 'A') add(node, true)
+    else if (k === 'x') putOnClip('cut')
+    else if (k === 'c') putOnClip('copy')
+    else if (k === 'p') paste()
     else if (k === 'r') rename()
     else if (k === 'd' || k === 'Delete') remove()
     else if (k === 'y') {
@@ -433,19 +549,21 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     <div className="explorer">
         <div className="explorer-body">
           <div
-            className="explorer-tree"
+            className={`explorer-tree ${moveDest === root ? 'drop-root' : ''}`}
             ref={tree}
             tabIndex={0}
             onKeyDown={onKeyDown}
             onFocus={() => setPart('tree')}
+            onContextMenu={(e) => showMenu(e, nodes[0])}
             style={sideStyle(treeWidth)}
           >
             {nodes.map((n, i) => (
               <div
                 key={n.path}
                 data-path={n.path}
-                className={`row ${i === index && !dragging ? 'selected' : ''} ${moveDest === n.path ? 'drop' : ''} ${(moving ?? dragging?.from) === n.path ? 'moving' : ''}`}
-                style={{ paddingLeft: `${1 + n.depth * 2}ch` }}
+                className={`row ${i === index && !dragging ? 'selected' : ''} ${moveDest && moveDest !== root && isInside(n.path, moveDest) ? 'drop-zone' : ''} ${moveDest === n.path ? 'drop' : ''} ${(moving ?? dragging?.from) === n.path ? 'moving' : ''} ${cutPath && isInside(n.path, cutPath) ? 'cut' : ''}`}
+                style={{ paddingLeft: `calc(0.6ch + ${n.depth * 16}px)` }}
+                onContextMenu={(e) => showMenu(e, n)}
                 onMouseDown={(e) => {
                   if (moving) return
                   setSelected(n.path)
@@ -464,8 +582,9 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
                   } else if (!n.dir) activate(n)
                 }}
               >
-                <span className="icon">{n.dir ? (expanded.has(n.path) ? '▾ ' : '▸ ') : '  '}</span>
-                <span className={n.dir ? 'dir' : changed.has(n.path) ? `st-${changed.get(n.path)}` : n.link ? 'link' : ''}>{n.name}</span>
+                {n.dir ? <Chevron open={expanded.has(n.path)} /> : <span className="chev" />}
+                <FileIcon n={n} open={expanded.has(n.path)} root={n.path === root} />
+                <span className={`name ${n.dir ? 'dir' : changed.has(n.path) ? `st-${changed.get(n.path)}` : n.link ? 'link' : ''}`}>{n.name}</span>
                 {n.link && <span className="dim"> →</span>}
                 {moveDest === n.path && <span className="drop-label">{'  ← '}{basename(moving ?? dragging?.from ?? '')}</span>}
                 {n.dir
@@ -477,7 +596,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
           </div>
           {draggedNode && (
             <div className="drag-ghost" ref={ghost}>
-              <span className="icon">{draggedNode.dir ? '▸ ' : '  '}</span>
+              <FileIcon n={draggedNode} open={false} />
               <span className={draggedNode.dir ? 'dir' : ''}>{draggedNode.name}</span>
               {dragging.over && <span className="dim">{'  → '}{pretty(dragging.over, root, '') || basename(root) || '/'}</span>}
             </div>
@@ -494,7 +613,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
               ? [`moving ${basename(moving)}`, '↑/↓ pick a folder', 'l/h expand/collapse', 'Enter move here', 'Esc cancel']
               : part === 'preview'
                 ? ['↑/↓ scroll', 'select and copy text', 'Enter in the tree opens the file']
-                : ['j/k move', 'Enter open', 'l/h expand/collapse', 'a new', 'r rename', 'm move', `${keyLabel('Z')} undo`, 'd delete', 'y copy path', 'R refresh']
+                : ['j/k move', 'Enter open', 'l/h expand/collapse', 'a/A new file/folder', 'r rename', 'm move', 'x/c/p cut/copy/paste', `${keyLabel('Z')} undo`, 'd delete', 'y copy path', 'R refresh']
           }
         />
     </div>
