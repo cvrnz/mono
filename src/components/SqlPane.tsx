@@ -16,19 +16,86 @@ import SqlGrid from './SqlGrid'
 
 type Props = { tab: S.SqlTab; active: boolean }
 
+type Icon = 'folder' | 'database' | sql.ObjectKind | 'column' | 'key'
 type Row =
   | { kind: 'conn'; conn: S.SqlConnection }
   | { kind: 'new' }
-  | { kind: 'schema'; schema: string; count: number }
-  | { kind: 'table'; table: sql.Table; depth: number }
+  | { kind: 'folder'; key: string; label: string; count: number; depth: number }
+  | { kind: 'db'; db: sql.Database; depth: number }
+  | { kind: 'object'; db: string; obj: sql.DbObject; depth: number }
   | { kind: 'column'; column: sql.Column; depth: number }
   | { kind: 'note'; text: string; depth: number }
 
 const engines = Object.keys(sql.engineNames) as S.SqlEngine[]
-const mainSchemas = new Set(['public', 'dbo', 'main'])
 const none: S.SqlConnection[] = []
 const rowCount = (n: number) => `${n.toLocaleString()} row${n === 1 ? '' : 's'}`
-const tableKey = (t: sql.Table) => `${t.schema}\u0000${t.name}`
+const objKey = (db: string, o: sql.DbObject) => `${db}\u0000${o.schema}\u0000${o.name}`
+const folders: [sql.ObjectKind, string][] = [
+  ['table', 'Tables'],
+  ['view', 'Views'],
+  ['procedure', 'Stored Procedures'],
+  ['function', 'Functions'],
+]
+const hasColumns = (o: sql.DbObject) => o.kind === 'table' || o.kind === 'view'
+
+function keyOf(r: Row | undefined): string | null {
+  if (r?.kind === 'folder') return r.key
+  if (r?.kind === 'db') return `d:${r.db.name}`
+  if (r?.kind === 'object' && hasColumns(r.obj)) return `t:${objKey(r.db, r.obj)}`
+  return null
+}
+
+const iconPaths: Record<Icon, React.ReactNode> = {
+  folder: <path d="M1.5 4.5a1 1 0 0 1 1-1h3.4l1.6 1.6h6a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" />,
+  database: (
+    <>
+      <ellipse cx="8" cy="4" rx="5" ry="2" />
+      <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
+    </>
+  ),
+  table: (
+    <>
+      <rect x="2" y="3" width="12" height="10" rx="1.5" />
+      <path d="M2 6.5h12M2 9.8h12M6.5 6.5V13" />
+    </>
+  ),
+  view: (
+    <>
+      <path d="M1.5 8S3.9 3.5 8 3.5 14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z" />
+      <circle cx="8" cy="8" r="2" />
+    </>
+  ),
+  procedure: <path d="M5.5 4 2 8l3.5 4M10.5 4 14 8l-3.5 4M9 3 7 13" />,
+  function: <path d="M11 2.5c-1.7 0-2.4.9-2.7 2.5L7 11c-.3 1.6-1 2.5-2.5 2.5M5.5 6.5h5" />,
+  column: (
+    <>
+      <rect x="2.5" y="5" width="11" height="6" rx="1.2" />
+      <path d="M6 8h4" />
+    </>
+  ),
+  key: (
+    <>
+      <circle cx="5.5" cy="8" r="2.6" />
+      <path d="M8.1 8H14M12 8v2.4M14 8v2" />
+    </>
+  ),
+}
+
+function SqlIcon({ icon }: { icon: Icon }) {
+  return (
+    <svg className={`sql-icon sql-icon-${icon}`} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {iconPaths[icon]}
+    </svg>
+  )
+}
+
+function Chevron({ open, hidden }: { open?: boolean; hidden?: boolean }) {
+  return (
+    <svg className={`chev ${open ? 'open' : ''}`} viewBox="0 0 16 16" aria-hidden style={hidden ? { visibility: 'hidden' } : undefined}>
+      <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
 
 function modeOf(ev: { mode: string; subMode?: string }) {
   if (ev.mode === 'visual') return ev.subMode === 'linewise' ? 'visual-line' : ev.subMode === 'blockwise' ? 'visual-block' : 'visual'
@@ -47,9 +114,10 @@ export default function SqlPane({ tab, active }: Props) {
   const [connError, setConnError] = useState('')
   const [form, setForm] = useState<{ conn: S.SqlConnection; was?: string } | null>(null)
 
-  const [tables, setTables] = useState<sql.Table[] | null>(null)
-  const [tablesError, setTablesError] = useState('')
+  const [dbs, setDbs] = useState<sql.Database[] | null>(null)
+  const [dbsError, setDbsError] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [objects, setObjects] = useState<Map<string, sql.DbObject[] | string>>(new Map())
   const [columns, setColumns] = useState<Map<string, sql.Column[] | string>>(new Map())
   const [cursor, setCursor] = useState(0)
 
@@ -185,20 +253,52 @@ export default function SqlPane({ tab, active }: Props) {
 
   useEffect(() => () => void sql.disconnect(id), [id])
 
-  const loadTables = useCallback(async () => {
-    setTablesError('')
-    try {
-      const list = await sql.tables(id)
-      setTables(list)
+  const objectsRef = useRef(new Map<string, sql.DbObject[] | string>())
+  const loadObjects = useCallback(
+    async (db: string, force = false) => {
+      if (!force && objectsRef.current.has(db)) return
+      objectsRef.current.set(db, [])
+      if (force)
+        setObjects((m) => {
+          const next = new Map(m)
+          next.delete(db)
+          return next
+        })
+      let got: sql.DbObject[] | string
+      try {
+        got = await sql.objects(id, db)
+      } catch (err) {
+        got = errorText(err)
+      }
+      objectsRef.current.set(db, got)
+      setObjects((m) => new Map(m).set(db, got))
+    },
+    [id],
+  )
+
+  const loadTree = useCallback(
+    async (i: sql.Info) => {
+      setDbsError('')
+      objectsRef.current = new Map()
+      setObjects(new Map())
       setColumns(new Map())
-      const schemas = [...new Set(list.map((t) => t.schema))]
-      const main = schemas.find((s) => mainSchemas.has(s) || s === infoRef.current?.database) ?? schemas[0]
-      setExpanded(new Set(main !== undefined ? [`s:${main}`] : []))
-    } catch (err) {
-      setTables([])
-      setTablesError(errorText(err))
-    }
-  }, [id])
+      try {
+        const list = await sql.databases(id)
+        setDbs(list)
+        const cur = sql.currentDatabase(i)
+        const open = new Set(['dbs'])
+        if (list.some((d) => d.name === cur && !d.system)) {
+          open.add(`d:${cur}`).add(`f:${cur}\u0000table`)
+          loadObjects(cur)
+        }
+        setExpanded(open)
+      } catch (err) {
+        setDbs([])
+        setDbsError(errorText(err))
+      }
+    },
+    [id, loadObjects],
+  )
 
   const focusEditor = () => requestAnimationFrame(() => editorRef.current?.focus())
 
@@ -209,14 +309,16 @@ export default function SqlPane({ tab, active }: Props) {
       try {
         const i = await sql.connect(id, c)
         setInfo(i)
+        infoRef.current = i
         setCurrent(c)
         setForm(null)
         setOutcome(null)
-        setTables(null)
+        setDbs(null)
         setCursor(0)
         S.updateTab(tab.id, { conn: c.name || undefined })
-        loadTables()
+        loadTree(i)
         focusEditor()
+        return i
       } catch (err) {
         setConnError(errorText(err))
         setForm((f) => f ?? { conn: c, was: saved.some((x) => x.name === c.name) ? c.name : undefined })
@@ -224,7 +326,7 @@ export default function SqlPane({ tab, active }: Props) {
         setConnecting(false)
       }
     },
-    [id, tab.id, loadTables, saved],
+    [id, tab.id, loadTree, saved],
   )
 
   useEffect(() => {
@@ -238,7 +340,7 @@ export default function SqlPane({ tab, active }: Props) {
     await sql.disconnect(id)
     setInfo(null)
     setCurrent(null)
-    setTables(null)
+    setDbs(null)
     setOutcome(null)
     setCursor(0)
     S.updateTab(tab.id, { conn: undefined })
@@ -296,7 +398,7 @@ export default function SqlPane({ tab, active }: Props) {
       setShown(0)
       if (/not connected/i.test(errorText(err))) {
         setInfo(null)
-        setTables(null)
+        setDbs(null)
       }
     } finally {
       setRunning(false)
@@ -334,11 +436,11 @@ export default function SqlPane({ tab, active }: Props) {
     setForm({ conn: { name: '', engine: 'postgres', host: 'localhost', port: sql.defaultPorts.postgres } })
   }
 
-  const loadColumns = async (t: sql.Table) => {
-    const key = tableKey(t)
+  const loadColumns = async (db: string, o: sql.DbObject) => {
+    const key = objKey(db, o)
     if (columns.has(key)) return
     try {
-      const list = await sql.columns(id, t.schema, t.name)
+      const list = await sql.columns(id, db, o.schema, o.name)
       setColumns((m) => new Map(m).set(key, list))
     } catch (err) {
       setColumns((m) => new Map(m).set(key, errorText(err)))
@@ -347,29 +449,42 @@ export default function SqlPane({ tab, active }: Props) {
 
   const rows: Row[] = useMemo(() => {
     if (!info) return [...saved.map((conn): Row => ({ kind: 'conn', conn })), { kind: 'new' }]
-    if (!tables) return []
+    if (!dbs) return []
     const out: Row[] = []
-    const schemas = [...new Set(tables.map((t) => t.schema))]
-    const grouped = schemas.length > 1
-    const addTable = (t: sql.Table, depth: number) => {
-      out.push({ kind: 'table', table: t, depth })
-      const key = tableKey(t)
-      if (!expanded.has(`t:${key}`)) return
+    const kinds = info.engine === 'sqlite' ? folders.slice(0, 2) : folders
+    const addObject = (db: string, obj: sql.DbObject, depth: number) => {
+      out.push({ kind: 'object', db, obj, depth })
+      const key = objKey(db, obj)
+      if (!hasColumns(obj) || !expanded.has(`t:${key}`)) return
       const cols = columns.get(key)
       if (cols === undefined) out.push({ kind: 'note', text: 'Loading…', depth: depth + 1 })
       else if (typeof cols === 'string') out.push({ kind: 'note', text: cols, depth: depth + 1 })
       else for (const column of cols) out.push({ kind: 'column', column, depth: depth + 1 })
     }
-    for (const schema of schemas) {
-      const list = tables.filter((t) => t.schema === schema)
-      if (grouped) {
-        out.push({ kind: 'schema', schema, count: list.length })
-        if (!expanded.has(`s:${schema}`)) continue
+    const addDb = (db: sql.Database, depth: number) => {
+      out.push({ kind: 'db', db, depth })
+      if (!expanded.has(`d:${db.name}`)) return
+      const objs = objects.get(db.name)
+      if (objs === undefined) return void out.push({ kind: 'note', text: 'Loading…', depth: depth + 1 })
+      if (typeof objs === 'string') return void out.push({ kind: 'note', text: objs, depth: depth + 1 })
+      for (const [kind, label] of kinds) {
+        const list = objs.filter((o) => o.kind === kind)
+        const key = `f:${db.name}\u0000${kind}`
+        out.push({ kind: 'folder', key, label, count: list.length, depth: depth + 1 })
+        if (expanded.has(key)) for (const o of list) addObject(db.name, o, depth + 2)
       }
-      for (const t of list) addTable(t, grouped ? 1 : 0)
+    }
+    const system = dbs.filter((d) => d.system)
+    out.push({ kind: 'folder', key: 'dbs', label: 'Databases', count: dbs.length - system.length, depth: 0 })
+    if (expanded.has('dbs')) {
+      if (system.length) {
+        out.push({ kind: 'folder', key: 'sys', label: 'System Databases', count: system.length, depth: 1 })
+        if (expanded.has('sys')) for (const d of system) addDb(d, 2)
+      }
+      for (const d of dbs) if (!d.system) addDb(d, 1)
     }
     return out
-  }, [info, tables, saved, expanded, columns])
+  }, [info, dbs, saved, expanded, objects, columns])
 
   const at = Math.min(cursor, Math.max(0, rows.length - 1))
   const row = rows[at] as Row | undefined
@@ -382,6 +497,16 @@ export default function SqlPane({ tab, active }: Props) {
       return next
     })
 
+  const expand = (r: Row | undefined, on?: boolean) => {
+    const key = keyOf(r)
+    if (!key || !r) return
+    const opening = on ?? !expanded.has(key)
+    toggle(key, opening)
+    if (!opening) return
+    if (r.kind === 'db') loadObjects(r.db.name)
+    else if (r.kind === 'object') loadColumns(r.db, r.obj)
+  }
+
   const insert = (name: string) => {
     const editor = editorRef.current
     if (!editor) return
@@ -392,29 +517,37 @@ export default function SqlPane({ tab, active }: Props) {
 
   const nameOf = (r: Row | undefined): string | null => {
     if (!info || !r) return null
-    if (r.kind === 'table') return sql.tableName(info, r.table)
+    if (r.kind === 'object') return sql.objectName(info, r.db, r.obj)
     if (r.kind === 'column') return sql.quoteName(info.engine, r.column.name)
-    if (r.kind === 'schema') return sql.quoteName(info.engine, r.schema)
+    if (r.kind === 'db') return sql.quoteName(info.engine, r.db.name)
     return null
   }
 
-  const choose = (r: Row | undefined) => {
+  /** Reconnects with this database as the default one for queries. */
+  const switchDatabase = async (db: string) => {
+    if (!current || !info || db === sql.currentDatabase(info) || info.engine === 'sqlite') return infoRef.current
+    const i = await open({ ...current, database: db })
+    if (i) toast(`Using ${db}`)
+    return i
+  }
+
+  const choose = async (r: Row | undefined) => {
     if (!r) return
     if (r.kind === 'conn') open(r.conn)
     else if (r.kind === 'new') newForm()
-    else if (r.kind === 'schema') toggle(`s:${r.schema}`)
-    else if (r.kind === 'table' && info) run(sql.selectTop(info, r.table))
-    else if (r.kind === 'column') insert(nameOf(r)!)
+    else if (r.kind === 'folder' || r.kind === 'db') expand(r)
+    else if (r.kind === 'object' && info) {
+      if (!hasColumns(r.obj)) return insert(sql.objectName(info, r.db, r.obj))
+      // Postgres can't query another database over the same connection.
+      const i = info.engine === 'postgres' ? await switchDatabase(r.db) : info
+      if (i) run(sql.selectTop(i, sql.objectName(i, r.db, r.obj)))
+    } else if (r.kind === 'column') insert(nameOf(r)!)
   }
 
+  const depthOf = (r: Row) => ('depth' in r ? r.depth : 0)
   const parentIndex = (i: number): number => {
-    const r = rows[i]
-    const depth = r && 'depth' in r ? r.depth : 0
-    for (let j = i - 1; j >= 0; j--) {
-      const p = rows[j]
-      const d = p.kind === 'schema' ? -1 : 'depth' in p ? p.depth : 0
-      if (d < depth) return j
-    }
+    const depth = rows[i] ? depthOf(rows[i]) : 0
+    for (let j = i - 1; j >= 0; j--) if (depthOf(rows[j]) < depth) return j
     return i
   }
 
@@ -433,18 +566,22 @@ export default function SqlPane({ tab, active }: Props) {
       setForm({ conn: row.conn, was: row.conn.name })
     } else if (!info && k === 'd' && row?.kind === 'conn') remove(row.conn)
     else if (info && (k === 'l' || k === 'ArrowRight')) {
-      if (row?.kind === 'schema') toggle(`s:${row.schema}`, true)
-      else if (row?.kind === 'table') {
-        toggle(`t:${tableKey(row.table)}`, true)
-        loadColumns(row.table)
-      }
+      const key = keyOf(row)
+      if (key && expanded.has(key)) move(at + 1)
+      else expand(row, true)
     } else if (info && (k === 'h' || k === 'ArrowLeft')) {
-      if (row?.kind === 'schema' && expanded.has(`s:${row.schema}`)) toggle(`s:${row.schema}`, false)
-      else if (row?.kind === 'table' && expanded.has(`t:${tableKey(row.table)}`)) toggle(`t:${tableKey(row.table)}`, false)
+      const key = keyOf(row)
+      if (key && expanded.has(key)) expand(row, false)
       else move(parentIndex(at))
     } else if (info && k === 'i' && nameOf(row)) insert(nameOf(row)!)
     else if (info && k === 'y' && nameOf(row)) copyText(nameOf(row)!).then(() => toast(`Copied ${nameOf(row)}`))
-    else if (info && k === 'R') loadTables()
+    else if (info && k === 'u' && row?.kind === 'db') switchDatabase(row.db.name)
+    else if (info && k === 'R') {
+      const db = row?.kind === 'db' ? row.db.name : row?.kind === 'object' ? row.db : row?.kind === 'folder' && row.key.startsWith('f:') ? row.key.slice(2).split('\u0000')[0] : null
+      setColumns(new Map())
+      if (db) loadObjects(db, true)
+      else loadTree(info)
+    }
     else return
     e.preventDefault()
   }
@@ -495,51 +632,69 @@ export default function SqlPane({ tab, active }: Props) {
   }
 
   const rowLabel = (r: Row) => {
-    const pad = '  '.repeat('depth' in r ? r.depth : 0)
     switch (r.kind) {
       case 'conn':
         return (
           <>
-            {'  '}
-            <span className="sql-conn-name">{r.conn.name}</span>
-            <span className="desc">  {sql.engineNames[r.conn.engine]} · {sql.describe(r.conn)}</span>
+            <SqlIcon icon="database" />
+            <span className="name sql-conn-name">{r.conn.name}</span>
+            <span className="desc">{sql.engineNames[r.conn.engine]} · {sql.describe(r.conn)}</span>
           </>
         )
       case 'new':
-        return <span className="desc">  + New connection</span>
-      case 'schema':
+        return <span className="desc">+ New connection</span>
+      case 'folder':
         return (
           <>
-            {expanded.has(`s:${r.schema}`) ? '▾ ' : '▸ '}
-            <span className="sql-schema">{r.schema}</span>
-            <span className="desc">  {r.count}</span>
+            <Chevron open={expanded.has(r.key)} />
+            <SqlIcon icon="folder" />
+            <span className="name">{r.label}</span>
+            <span className="desc">{r.count}</span>
           </>
         )
-      case 'table':
+      case 'db': {
+        const here = info && r.db.name === sql.currentDatabase(info)
         return (
           <>
-            {pad}
-            {expanded.has(`t:${tableKey(r.table)}`) ? '▾ ' : '▸ '}
-            <span className={r.table.view ? 'sql-view' : 'sql-table'}>{r.table.name}</span>
-            {r.table.view && <span className="desc">  view</span>}
+            <Chevron open={expanded.has(`d:${r.db.name}`)} />
+            <SqlIcon icon="database" />
+            <span className="name">{r.db.name}</span>
+            {here && <span className="desc">current</span>}
           </>
         )
+      }
+      case 'object': {
+        const plain = !info || r.obj.schema === sql.defaultSchema(info, r.db)
+        return (
+          <>
+            <Chevron open={expanded.has(`t:${objKey(r.db, r.obj)}`)} hidden={!hasColumns(r.obj)} />
+            <SqlIcon icon={r.obj.kind} />
+            <span className="name">
+              {!plain && <span className="dim">{r.obj.schema}.</span>}
+              {r.obj.name}
+            </span>
+          </>
+        )
+      }
       case 'column':
         return (
           <>
-            {pad}
-            {'  '}
-            <span className={r.column.key ? 'sql-key' : undefined}>{r.column.name}</span>
+            <Chevron hidden />
+            <SqlIcon icon={r.column.key ? 'key' : 'column'} />
+            <span className={`name ${r.column.key ? 'sql-key' : ''}`}>{r.column.name}</span>
             <span className="desc">
-              {'  '}
               {r.column.type}
-              {r.column.nullable ? '' : ' not null'}
-              {r.column.key ? ' · key' : ''}
+              {r.column.nullable ? '' : ', not null'}
             </span>
           </>
         )
       case 'note':
-        return <span className="desc">{pad}  {r.text}</span>
+        return (
+          <>
+            <Chevron hidden />
+            <span className="desc">{r.text}</span>
+          </>
+        )
     }
   }
 
@@ -567,7 +722,7 @@ export default function SqlPane({ tab, active }: Props) {
             ? ['h/j/k/l move', 'g/G first/last row', '0/$ first/last column', 'y copy cell', 'Y copy row']
             : ['↑/↓ scroll', 'select and copy text']
           : info
-            ? ['j/k move', 'Enter first 100 rows', 'l/h expand/collapse', 'i insert name', 'y copy name', 'R refresh']
+            ? ['j/k move', 'Enter first 100 rows', 'l/h expand/collapse', 'i insert name', 'y copy name', 'u use database', 'R refresh']
             : ['j/k move', 'Enter connect', 'a new', 'e edit', 'd delete']
   useHints(tab.id, hints)
 
@@ -596,23 +751,20 @@ export default function SqlPane({ tab, active }: Props) {
               <Spinner size="sm" /> Connecting…
             </div>
           )}
-          {info && !tables && !tablesError && <div className="row desc">  Loading…</div>}
-          {tablesError && <div className="row sql-bad">  {tablesError}</div>}
-          {info && tables?.length === 0 && !tablesError && <div className="row desc">  No tables</div>}
+          {info && !dbs && !dbsError && <div className="row desc">Loading…</div>}
+          {dbsError && <div className="row sql-bad">{dbsError}</div>}
           {rows.map((r, i) => (
             <div
               key={i}
-              className={`row ${i === at ? 'selected' : ''}`}
+              className={`row sql-node ${i === at ? 'selected' : ''} ${r.kind === 'note' && r.text !== 'Loading…' ? 'sql-bad' : ''}`}
+              style={{ paddingLeft: `calc(${depthOf(r) * 12}px + 0.6ch)` }}
               onMouseDown={() => setCursor(i)}
               onClick={() => {
-                if (r.kind === 'schema') toggle(`s:${r.schema}`)
-                else if (r.kind === 'table') {
-                  toggle(`t:${tableKey(r.table)}`)
-                  loadColumns(r.table)
-                } else if (r.kind === 'new') newForm()
+                if (keyOf(r)) expand(r)
+                else if (r.kind === 'new') newForm()
               }}
-              onDoubleClick={() => r.kind !== 'schema' && r.kind !== 'new' && choose(r)}
-              title={r.kind === 'note' ? r.text : undefined}
+              onDoubleClick={() => r.kind !== 'folder' && r.kind !== 'db' && r.kind !== 'new' && choose(r)}
+              title={r.kind === 'note' ? r.text : r.kind === 'object' ? `${r.obj.kind} ${r.obj.schema}.${r.obj.name}` : undefined}
             >
               {rowLabel(r)}
             </div>

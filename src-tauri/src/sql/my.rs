@@ -1,4 +1,4 @@
-use super::{bytes, float, int, text, uint, Column, Config, Info, Outcome, ResultSet, Table, MAX_ROWS};
+use super::{bytes, float, int, text, uint, Column, Config, Info, Outcome, ResultSet, Database, Object, MAX_ROWS};
 use mysql_async::consts::{ColumnFlags, ColumnType};
 use mysql_async::prelude::Queryable;
 use mysql_async::{Conn, Opts, OptsBuilder, Row, SslOpts, Value};
@@ -140,13 +140,19 @@ impl My {
         Ok(rows.into_iter().map(|r| r.unwrap().iter().map(as_text).collect()).collect())
     }
 
-    pub async fn tables(&self) -> Result<Vec<Table>, String> {
-        let sql = format!(
-            "select table_schema, table_name, if(table_type = 'VIEW', 1, 0) from information_schema.tables
-             where table_schema not in {SYSTEM} and (database() is null or table_schema = database()) order by 1, 2"
-        );
+    pub async fn databases(&self) -> Result<Vec<Database>, String> {
+        let sql = format!("select schema_name, if(schema_name in {SYSTEM}, 1, 0) from information_schema.schemata order by 1");
         let rows = self.rows(sql, vec![]).await?;
-        Ok(rows.into_iter().map(|r| Table { schema: r[0].clone(), name: r[1].clone(), view: r[2] == "1" }).collect())
+        Ok(rows.into_iter().map(|r| Database { name: r[0].clone(), system: r[1] == "1" }).collect())
+    }
+
+    pub async fn objects(&self, database: &str) -> Result<Vec<Object>, String> {
+        let sql = "select table_schema, table_name, if(table_type = 'VIEW', 'view', 'table') from information_schema.tables where table_schema = ?
+             union all
+             select routine_schema, routine_name, lower(routine_type) from information_schema.routines where routine_schema = ?
+             order by 1, 2";
+        let rows = self.rows(sql.into(), vec![database.into(), database.into()]).await?;
+        Ok(rows.into_iter().map(|r| Object { schema: r[0].clone(), name: r[1].clone(), kind: r[2].clone() }).collect())
     }
 
     pub async fn columns(&self, schema: &str, table: &str) -> Result<Vec<Column>, String> {

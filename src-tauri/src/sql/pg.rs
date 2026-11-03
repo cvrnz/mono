@@ -1,7 +1,8 @@
 use super::split::postgres_commands;
-use super::{numeric_text, text, Column, Config, Info, Outcome, ResultSet, Table, MAX_ROWS};
+use super::{numeric_text, text, Column, Config, Info, Database, Object, Outcome, ResultSet, MAX_ROWS};
 use futures_util::{stream, StreamExt};
 use postgres_native_tls::MakeTlsConnector;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::task::JoinHandle;
@@ -17,12 +18,19 @@ pub struct Pg {
     notices: Arc<Mutex<Vec<String>>>,
     lost: Arc<Mutex<Option<String>>>,
     task: JoinHandle<()>,
+    config: Config,
+    others: tokio::sync::Mutex<HashMap<String, Arc<Pg>>>,
 }
 
-const TABLES: &str = "
-select table_schema::text, table_name::text, table_type = 'VIEW'
+const OBJECTS: &str = "
+select table_schema::text, table_name::text, case when table_type = 'VIEW' then 'view' else 'table' end
 from information_schema.tables
 where table_schema not in ('pg_catalog', 'information_schema') and table_schema not like 'pg_toast%' and table_schema not like 'pg_temp%'
+union
+select n.nspname::text, p.proname::text, case when p.prokind = 'p' then 'procedure' else 'function' end
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname not in ('pg_catalog', 'information_schema') and p.prokind in ('f', 'p')
+  and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
 order by 1, 2";
 
 const COLUMNS: &str = "
@@ -117,7 +125,7 @@ impl Pg {
             .map_err(|e| error_text(&e))?;
         let info = Info { engine: "postgres", version: row.get(0), database: row.get(1), user: row.get(2) };
         let cancel = client.cancel_token();
-        Ok(Pg { info, client, cancel, tls, notices, lost, task })
+        Ok(Pg { info, client, cancel, tls, notices, lost, task, config: c.clone(), others: Default::default() })
     }
 
     pub async fn query(&self, sql: &str) -> Result<Outcome, String> {
@@ -185,18 +193,50 @@ impl Pg {
         r.map_err(|e| error_text(&e))
     }
 
-    pub async fn tables(&self) -> Result<Vec<Table>, String> {
-        let rows = self.client.query(TABLES, &[]).await.map_err(|e| error_text(&e))?;
-        Ok(rows.iter().map(|r| Table { schema: r.get(0), name: r.get(1), view: r.get(2) }).collect())
+    pub async fn databases(&self) -> Result<Vec<Database>, String> {
+        let rows = self
+            .client
+            .query("select datname::text, datname in ('postgres', 'template0', 'template1') from pg_database where not datistemplate and datallowconn order by 1", &[])
+            .await
+            .map_err(|e| error_text(&e))?;
+        Ok(rows.iter().map(|r| Database { name: r.get(0), system: r.get(1) }).collect())
     }
 
-    pub async fn columns(&self, schema: &str, table: &str) -> Result<Vec<Column>, String> {
-        let rows = self.client.query(COLUMNS, &[&schema, &table]).await.map_err(|e| error_text(&e))?;
+    async fn on(&self, database: &str) -> Result<Option<Arc<Pg>>, String> {
+        if database.is_empty() || database == self.info.database {
+            return Ok(None);
+        }
+        let mut others = self.others.lock().await;
+        if let Some(pg) = others.get(database) {
+            if pg.lost.lock().unwrap().is_none() {
+                return Ok(Some(pg.clone()));
+            }
+        }
+        let config = Config { database: Some(database.into()), ..self.config.clone() };
+        let pg = Arc::new(Box::pin(Pg::open(&config)).await?);
+        others.insert(database.into(), pg.clone());
+        Ok(Some(pg))
+    }
+
+    pub async fn objects(&self, database: &str) -> Result<Vec<Object>, String> {
+        let other = self.on(database).await?;
+        let client = other.as_ref().map_or(&self.client, |p| &p.client);
+        let rows = client.query(OBJECTS, &[]).await.map_err(|e| error_text(&e))?;
+        Ok(rows.iter().map(|r| Object { schema: r.get(0), name: r.get(1), kind: r.get(2) }).collect())
+    }
+
+    pub async fn columns(&self, database: &str, schema: &str, table: &str) -> Result<Vec<Column>, String> {
+        let other = self.on(database).await?;
+        let client = other.as_ref().map_or(&self.client, |p| &p.client);
+        let rows = client.query(COLUMNS, &[&schema, &table]).await.map_err(|e| error_text(&e))?;
         Ok(rows.iter().map(|r| Column { name: r.get(0), kind: r.get(1), nullable: r.get(2), key: r.get(3) }).collect())
     }
 
     pub async fn close(&self) {
         self.task.abort();
+        for pg in self.others.lock().await.values() {
+            pg.task.abort();
+        }
     }
 }
 

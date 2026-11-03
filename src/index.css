@@ -1415,3 +1415,63 @@ button:disabled,
   gap: 8px;
   margin-top: 4px;
 }
+.sql-node {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.sql-node .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.sql-node .desc {
+  flex: 0 1000 auto;
+  min-width: 0;
+  margin-left: 1.2ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sql-node .chev {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--fg);
+  opacity: 0.75;
+  margin-right: 2px;
+  transition: transform 0.1s;
+}
+.sql-node .chev.open {
+  transform: rotate(90deg);
+}
+.sql-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+}
+.sql-icon-folder {
+  color: var(--dim);
+}
+.sql-icon-database {
+  color: var(--yellow);
+}
+.sql-icon-table {
+  color: var(--blue);
+}
+.sql-icon-view {
+  color: var(--cyan);
+}
+.sql-icon-procedure {
+  color: var(--purple);
+}
+.sql-icon-function {
+  color: var(--green);
+}
+.sql-icon-column {
+  color: var(--dim);
+}
+.sql-icon-key {
+  color: var(--yellow);
+}

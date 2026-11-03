@@ -289,13 +289,18 @@ async fn sql_cancel(state: State<'_, App>, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn sql_tables(state: State<'_, App>, id: String) -> Result<Vec<sql::Table>, String> {
-    state.sql.tables(&id).await
+async fn sql_databases(state: State<'_, App>, id: String) -> Result<Vec<sql::Database>, String> {
+    state.sql.databases(&id).await
 }
 
 #[tauri::command]
-async fn sql_columns(state: State<'_, App>, id: String, schema: String, table: String) -> Result<Vec<sql::Column>, String> {
-    state.sql.columns(&id, &schema, &table).await
+async fn sql_objects(state: State<'_, App>, id: String, database: String) -> Result<Vec<sql::Object>, String> {
+    state.sql.objects(&id, &database).await
+}
+
+#[tauri::command]
+async fn sql_columns(state: State<'_, App>, id: String, database: String, schema: String, table: String) -> Result<Vec<sql::Column>, String> {
+    state.sql.columns(&id, &database, &schema, &table).await
 }
 
 #[tauri::command]
@@ -430,7 +435,8 @@ fn main() {
             sql_connect,
             sql_query,
             sql_cancel,
-            sql_tables,
+            sql_databases,
+            sql_objects,
             sql_columns,
             sql_disconnect,
             set_dirty,

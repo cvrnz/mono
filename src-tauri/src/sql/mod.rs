@@ -86,10 +86,17 @@ impl Outcome {
 }
 
 #[derive(Serialize)]
-pub struct Table {
+pub struct Database {
+    pub name: String,
+    pub system: bool,
+}
+
+#[derive(Serialize)]
+pub struct Object {
     pub schema: String,
     pub name: String,
-    pub view: bool,
+    /// table, view, procedure or function
+    pub kind: String,
 }
 
 #[derive(Serialize)]
@@ -214,21 +221,30 @@ impl Db {
         }
     }
 
-    async fn tables(&self) -> Result<Vec<Table>, String> {
+    async fn databases(&self) -> Result<Vec<Database>, String> {
         match self {
-            Db::Pg(d) => d.tables().await,
-            Db::My(d) => d.tables().await,
-            Db::Ms(d) => d.tables().await,
-            Db::Lite(d) => d.tables().await,
+            Db::Pg(d) => d.databases().await,
+            Db::My(d) => d.databases().await,
+            Db::Ms(d) => d.databases().await,
+            Db::Lite(d) => d.databases().await,
         }
     }
 
-    async fn columns(&self, schema: &str, table: &str) -> Result<Vec<Column>, String> {
+    async fn objects(&self, database: &str) -> Result<Vec<Object>, String> {
         match self {
-            Db::Pg(d) => d.columns(schema, table).await,
+            Db::Pg(d) => d.objects(database).await,
+            Db::My(d) => d.objects(database).await,
+            Db::Ms(d) => d.objects(database).await,
+            Db::Lite(d) => d.objects(database).await,
+        }
+    }
+
+    async fn columns(&self, database: &str, schema: &str, table: &str) -> Result<Vec<Column>, String> {
+        match self {
+            Db::Pg(d) => d.columns(database, schema, table).await,
             Db::My(d) => d.columns(schema, table).await,
-            Db::Ms(d) => d.columns(schema, table).await,
-            Db::Lite(d) => d.columns(schema, table).await,
+            Db::Ms(d) => d.columns(database, schema, table).await,
+            Db::Lite(d) => d.columns(database, table).await,
         }
     }
 
@@ -295,12 +311,16 @@ impl Sql {
         self.db(id)?.cancel().await
     }
 
-    pub async fn tables(&self, id: &str) -> Result<Vec<Table>, String> {
-        self.db(id)?.tables().await
+    pub async fn databases(&self, id: &str) -> Result<Vec<Database>, String> {
+        self.db(id)?.databases().await
     }
 
-    pub async fn columns(&self, id: &str, schema: &str, table: &str) -> Result<Vec<Column>, String> {
-        self.db(id)?.columns(schema, table).await
+    pub async fn objects(&self, id: &str, database: &str) -> Result<Vec<Object>, String> {
+        self.db(id)?.objects(database).await
+    }
+
+    pub async fn columns(&self, id: &str, database: &str, schema: &str, table: &str) -> Result<Vec<Column>, String> {
+        self.db(id)?.columns(database, schema, table).await
     }
 
     pub async fn disconnect(&self, id: &str) {
@@ -335,18 +355,29 @@ select * from t where id > 99;";
         assert_eq!(info.engine, engine);
         let out = serde_json::to_value(sql.query("x", SCRIPT).await.unwrap()).unwrap();
         assert!(out.get("error").is_none(), "{engine}: {out}");
-        let results = out["results"].as_array().unwrap();
-        assert_eq!(results.len(), 4, "{engine}: {out}");
-        assert_eq!(results[1]["affected"], json!(2), "{engine}: {out}");
-        assert_eq!(results[2]["columns"], json!(["id", "name", "score"]));
-        assert_eq!(results[2]["rows"], json!([[1, "a", 1.5], [2, "01234", null]]), "{engine}");
-        assert_eq!(results[3]["columns"], json!(["id", "name", "score"]), "{engine}: an empty result keeps its columns");
+        let all = out["results"].as_array().unwrap();
+        // SQL Server reports a batch's statements together, without the ones that return no rows.
+        let results = if engine == "mssql" { &all[..] } else { &all[2..] };
+        if engine != "mssql" {
+            assert_eq!(all.len(), 4, "{engine}: {out}");
+            assert_eq!(all[1]["affected"], json!(2), "{engine}: {out}");
+        }
+        assert_eq!(results[0]["columns"], json!(["id", "name", "score"]));
+        assert_eq!(results[0]["rows"], json!([[1, "a", 1.5], [2, "01234", null]]), "{engine}");
+        assert_eq!(results[1]["columns"], json!(["id", "name", "score"]), "{engine}: an empty result keeps its columns");
         let bad = serde_json::to_value(sql.query("x", "select nope from t").await.unwrap()).unwrap();
         assert!(bad["error"].is_string(), "{engine}: {bad}");
-        let tables = sql.tables("x").await.unwrap();
-        let t = tables.iter().find(|t| t.name == "t").unwrap_or_else(|| panic!("{engine}: no table t"));
-        let cols = sql.columns("x", &t.schema, "t").await.unwrap();
+        let dbs = sql.databases("x").await.unwrap();
+        let current = if engine == "sqlite" { "main" } else { info.database.as_str() };
+        assert!(dbs.iter().any(|d| d.name == current), "{engine}: {current} isn't among the databases");
+        let objects = sql.objects("x", current).await.unwrap();
+        let t = objects.iter().find(|t| t.name == "t" && t.kind == "table").unwrap_or_else(|| panic!("{engine}: no table t"));
+        let cols = sql.columns("x", current, &t.schema, "t").await.unwrap();
         assert_eq!(cols.iter().map(|c| (c.name.as_str(), c.key)).collect::<Vec<_>>(), [("id", true), ("name", false), ("score", false)]);
+        if let Some(other) = dbs.iter().find(|d| d.name != current && !d.system) {
+            sql.objects("x", &other.name).await.unwrap_or_else(|e| panic!("{engine}: listing {}: {e}", other.name));
+        }
+        sql.query("x", "drop table t").await.unwrap();
         sql.disconnect("x").await;
         assert!(sql.query("x", "select 1").await.is_err());
     }
@@ -361,8 +392,13 @@ select * from t where id > 99;";
         Some(Config {
             engine: engine.into(),
             port: Some(Value::String(port)),
-            user: Some(if engine == "postgres" { "postgres" } else { "root" }.into()),
-            password: Some("pw".into()),
+            user: Some(match engine {
+                "postgres" => "postgres",
+                "mssql" => "sa",
+                _ => "root",
+            }
+            .into()),
+            password: Some(std::env::var("MONO_TEST_PASSWORD").unwrap_or_else(|_| "pw".into())),
             database: (engine == "mysql").then(|| "t".into()),
             ..Default::default()
         })
@@ -372,6 +408,13 @@ select * from t where id > 99;";
     async fn postgres() {
         if let Some(c) = server("postgres", "MONO_TEST_PG_PORT") {
             check("postgres", c).await;
+        }
+    }
+
+    #[tokio::test]
+    async fn mssql() {
+        if let Some(c) = server("mssql", "MONO_TEST_MS_PORT") {
+            check("mssql", c).await;
         }
     }
 

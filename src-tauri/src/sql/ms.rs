@@ -1,5 +1,5 @@
 use super::split::split_batches;
-use super::{bytes, float, int, text, Cell, Column, Config, Info, Outcome, ResultSet, Table, MAX_ROWS};
+use super::{bytes, float, int, text, Cell, Column, Config, Info, Database, Object, Outcome, ResultSet, MAX_ROWS};
 use futures_util::TryStreamExt;
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,6 +29,10 @@ select c.COLUMN_NAME, c.DATA_TYPE,
 from INFORMATION_SCHEMA.COLUMNS c
 where c.TABLE_SCHEMA = @P1 and c.TABLE_NAME = @P2
 order by c.ORDINAL_POSITION";
+
+fn bracket(name: &str) -> String {
+    format!("[{}]", name.replace(']', "]]"))
+}
 
 fn err(e: tiberius::error::Error) -> String {
     match e {
@@ -183,22 +187,39 @@ impl Ms {
         rows
     }
 
-    pub async fn tables(&self) -> Result<Vec<Table>, String> {
+    pub async fn databases(&self) -> Result<Vec<Database>, String> {
         let rows = self
-            .rows("select TABLE_SCHEMA, TABLE_NAME, case when TABLE_TYPE = 'VIEW' then 1 else 0 end from INFORMATION_SCHEMA.TABLES order by 1, 2", &[])
+            .rows("select name, case when database_id <= 4 then 1 else 0 end from sys.databases where state = 0 and HAS_DBACCESS(name) = 1 order by name", &[])
             .await?;
         Ok(rows
             .iter()
-            .map(|r| Table {
+            .map(|r| Database { name: r.get::<&str, _>(0).unwrap_or("").into(), system: r.get::<i32, _>(1) == Some(1) })
+            .collect())
+    }
+
+    pub async fn objects(&self, database: &str) -> Result<Vec<Object>, String> {
+        let db = bracket(database);
+        let sql = format!(
+            "select TABLE_SCHEMA, TABLE_NAME, case when TABLE_TYPE = 'VIEW' then 'view' else 'table' end from {db}.INFORMATION_SCHEMA.TABLES
+             union all
+             select ROUTINE_SCHEMA, ROUTINE_NAME, lower(ROUTINE_TYPE) from {db}.INFORMATION_SCHEMA.ROUTINES
+             order by 1, 2"
+        );
+        let rows = self.rows(&sql, &[]).await?;
+        Ok(rows
+            .iter()
+            .map(|r| Object {
                 schema: r.get::<&str, _>(0).unwrap_or("").into(),
                 name: r.get::<&str, _>(1).unwrap_or("").into(),
-                view: r.get::<i32, _>(2) == Some(1),
+                kind: r.get::<&str, _>(2).unwrap_or("").into(),
             })
             .collect())
     }
 
-    pub async fn columns(&self, schema: &str, table: &str) -> Result<Vec<Column>, String> {
-        let rows = self.rows(COLUMNS, &[schema, table]).await?;
+    pub async fn columns(&self, database: &str, schema: &str, table: &str) -> Result<Vec<Column>, String> {
+        let db = bracket(database);
+        let sql = COLUMNS.replace("INFORMATION_SCHEMA.", &format!("{db}.INFORMATION_SCHEMA."));
+        let rows = self.rows(&sql, &[schema, table]).await?;
         Ok(rows
             .iter()
             .map(|r| Column {

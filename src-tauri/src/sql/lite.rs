@@ -1,5 +1,5 @@
 use super::split::split_sqlite;
-use super::{bytes, float, int, text, Cell, Column, Config, Info, Outcome, ResultSet, Table, MAX_ROWS};
+use super::{bytes, float, int, text, Cell, Column, Config, Info, Outcome, ResultSet, Database, Object, MAX_ROWS};
 use rusqlite::types::ValueRef;
 use rusqlite::{Connection, InterruptHandle};
 use std::path::PathBuf;
@@ -136,23 +136,35 @@ impl Lite {
         Ok(())
     }
 
-    pub async fn tables(&self) -> Result<Vec<Table>, String> {
+    pub async fn databases(&self) -> Result<Vec<Database>, String> {
         self.on_thread(|db| {
-            let mut st = db
-                .prepare("select name, type = 'view' from sqlite_schema where type in ('table', 'view') and name not like 'sqlite_%' order by name")
-                .map_err(|e| e.to_string())?;
-            let rows = st.query_map([], |r| Ok(Table { schema: "main".into(), name: r.get(0)?, view: r.get(1)? })).map_err(|e| e.to_string())?;
+            let mut st = db.prepare("select name from pragma_database_list where name <> 'temp' order by seq").map_err(|e| e.to_string())?;
+            let rows = st.query_map([], |r| Ok(Database { name: r.get(0)?, system: false })).map_err(|e| e.to_string())?;
             rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
         })
         .await?
     }
 
-    pub async fn columns(&self, _schema: &str, table: &str) -> Result<Vec<Column>, String> {
-        let table = table.to_string();
+    pub async fn objects(&self, database: &str) -> Result<Vec<Object>, String> {
+        let schema = database.to_string();
         self.on_thread(move |db| {
-            let mut st = db.prepare("select name, type, \"notnull\", pk from pragma_table_info(?)").map_err(|e| e.to_string())?;
+            let sql = format!(
+                "select name, type from \"{}\".sqlite_master where type in ('table', 'view') and name not like 'sqlite_%' order by name",
+                schema.replace('"', "\"\"")
+            );
+            let mut st = db.prepare(&sql).map_err(|e| e.to_string())?;
+            let rows = st.query_map([], |r| Ok(Object { schema: schema.clone(), name: r.get(0)?, kind: r.get(1)? })).map_err(|e| e.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())
+        })
+        .await?
+    }
+
+    pub async fn columns(&self, database: &str, table: &str) -> Result<Vec<Column>, String> {
+        let (schema, table) = (database.to_string(), table.to_string());
+        self.on_thread(move |db| {
+            let mut st = db.prepare("select name, type, \"notnull\", pk from pragma_table_info(?1, ?2)").map_err(|e| e.to_string())?;
             let rows = st
-                .query_map([table], |r| {
+                .query_map([table, schema], |r| {
                     Ok(Column { name: r.get(0)?, kind: r.get(1)?, nullable: r.get::<_, i64>(2)? == 0, key: r.get::<_, i64>(3)? > 0 })
                 })
                 .map_err(|e| e.to_string())?;
