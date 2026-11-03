@@ -1,7 +1,7 @@
 import { agentFor, fromBase64, onAgent, toBase64 } from './agent'
 import * as S from './store'
 
-type Sink = { data: (bytes: Uint8Array) => void; exit: (code: number) => void }
+type Sink = { data: (bytes: Uint8Array) => void; exit: (code: number) => void; proc?: (name: string) => void }
 
 const sinks = new Map<string, Sink>()
 const early = new Map<string, { data: Uint8Array[]; exit?: number }>()
@@ -17,6 +17,7 @@ function listen() {
     if (sink) sink.data(bytes)
     else hold(key).data.push(bytes)
   })
+  onAgent('term.proc', (p: { id: string; name: string }, project) => sinks.get(keyOf(project, p.id))?.proc?.(p.name))
   onAgent('term.exit', (p: { id: string; code: number }, project) => {
     const key = keyOf(project, p.id)
     const sink = sinks.get(key)
@@ -44,10 +45,10 @@ export type Shell = {
 
 const encoder = new TextEncoder()
 
-export async function openShell(project: string, cols: number, rows: number, cwd: string, sink: Sink): Promise<Shell> {
+export async function openShell(project: string, cols: number, rows: number, cwd: string, sink: Sink, command?: string): Promise<Shell> {
   listen()
   const agent = agentFor(project)
-  const { id, shell } = await agent.termOpen(cols, rows, cwd)
+  const { id, shell } = await agent.termOpen(cols, rows, cwd, command)
   const key = keyOf(project, id)
   sinks.set(key, sink)
   const held = early.get(key)

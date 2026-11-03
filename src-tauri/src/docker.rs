@@ -107,6 +107,8 @@ async fn install(docker: &str, container: &str, agents: &Path, status: &(dyn Fn(
 type Pending = Arc<Mutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>>;
 
 pub struct Agent {
+    pub docker: String,
+    pub container: String,
     stdin: tokio::sync::Mutex<ChildStdin>,
     pending: Pending,
     next: AtomicU64,
@@ -180,7 +182,7 @@ impl Agent {
             }
             on_close(why);
         });
-        Ok(Agent { stdin: tokio::sync::Mutex::new(stdin), pending, next: AtomicU64::new(0), child: Mutex::new(Some(child)) })
+        Ok(Agent { docker: docker.into(), container: container.into(), stdin: tokio::sync::Mutex::new(stdin), pending, next: AtomicU64::new(0), child: Mutex::new(Some(child)) })
     }
 
     pub async fn call(&self, method: &str, params: Value) -> Result<Value, String> {

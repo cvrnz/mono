@@ -6,6 +6,8 @@ import { keyLabel } from '../lib/commands'
 import { basename } from '../lib/paths'
 import * as S from '../lib/store'
 import CommandPalette from './CommandPalette'
+import RunPane from './RunPane'
+import RunView from './RunView'
 import ConnectScreen from './ConnectScreen'
 import CommitPane from './CommitPane'
 import DiffPane, { diffLabel } from './DiffPane'
@@ -22,14 +24,13 @@ import Welcome from './Welcome'
 import { noDrag, windowDrag, windowMenu } from '../lib/window'
 
 export function tabLabel(tab: S.Tab): string {
-  if (S.focusedPane(tab) !== tab.id) return 'Terminal'
+  const focused = S.focusedPane(tab)
+  if (tab.kind === 'terminal' || focused !== tab.id) return S.get().procs[focused] || 'Terminal'
   switch (tab.kind) {
     case 'scm':
       return 'Git'
     case 'welcome':
       return 'Welcome'
-    case 'terminal':
-      return 'Terminal'
     case 'file':
       return tab.path ? basename(tab.path) : 'Untitled'
     case 'diff':
@@ -40,6 +41,8 @@ export function tabLabel(tab: S.Tab): string {
       return 'Explorer'
     case 'search':
       return 'Search'
+    case 'run':
+      return 'Run'
     case 'sql':
       return tab.conn ? `SQL: ${tab.conn}` : 'SQL'
   }
@@ -157,6 +160,7 @@ function TabBar() {
   const active = S.useStore((s) => s.active)
   const side = S.useStore((s) => S.sidebar(s))
   const icons = S.useStore((s) => Boolean(s.settings.tabIcons))
+  S.useStore((s) => s.procs)
   return (
     <div className="tabbar">
       {tabs.map((t, i) => {
@@ -282,6 +286,8 @@ function sideContent(tab: S.Tab, shown: boolean): ReactNode {
       return <ScmPane id={tab.id} active={shown} />
     case 'search':
       return <SearchPane tab={tab} active={shown} />
+    case 'run':
+      return <RunPane tab={tab} active={shown} />
     default:
       return null
   }
@@ -366,11 +372,13 @@ function Panes() {
   const projects = S.useStore((s) => s.projects)
   const current = S.useStore((s) => s.project)
   const connected = S.useStore((s) => S.isConnected(s.conn))
+  const runView = S.useStore((s) => (s.runView && s.runs.some((r) => r.id === s.runView && r.project === s.project) ? s.runView : null))
   return (
     <div className="panes">
       {projects.map((p) => (
         <ProjectPanes key={p.id} project={p} current={p.id === current} />
       ))}
+      {connected && runView && <RunView key={runView} id={runView} />}
       {!connected && (
         <div className="connect-layer">
           <ConnectScreen key={current} />

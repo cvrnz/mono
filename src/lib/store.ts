@@ -26,6 +26,9 @@ export type Settings = {
   sideWidths?: { sidebar?: number; sql?: number }
   sidebar?: FixedKind | 'none'
   tabIcons?: boolean
+  iconPack?: 'material' | 'vscode' | 'catppuccin'
+  /** Run configurations, by project (see runs.ts targetKey). */
+  runConfigs?: Record<string, RunConfig[]>
   wordWrap?: boolean
   session?: SavedSession
 }
@@ -39,6 +42,7 @@ export type SavedTab = (
   | { kind: 'welcome' }
   | { kind: 'explorer' }
   | { kind: 'search' }
+  | { kind: 'run' }
   | { kind: 'sql'; conn?: string; text?: string }
 ) & { splits?: { dir: Splits['dir']; count: number } }
 
@@ -58,6 +62,10 @@ export const defaultSettings: Settings = {
 }
 
 export type SqlEngine = 'postgres' | 'mysql' | 'mssql' | 'sqlite'
+
+export type RunConfig = { name: string; command: string; cwd?: string }
+export type RunState = 'starting' | 'running' | 'done' | 'failed' | 'stopped'
+export type Run = { id: string; project: string; name: string; command: string; cwd: string; state: RunState; code?: number; started: number; ended?: number }
 
 export type SqlConnection = {
   name: string
@@ -85,9 +93,10 @@ export type ExplorerTab = TabBase & { kind: 'explorer' }
 export type SqlTab = TabBase & { kind: 'sql'; conn?: string; text?: string }
 export type SearchKind = 'files' | 'text'
 export type SearchTab = TabBase & { kind: 'search'; ask?: { kind: SearchKind; text: string; n: number } }
-export type Tab = FileTab | DiffTab | CommitTab | TerminalTab | ScmTab | WelcomeTab | ExplorerTab | SqlTab | SearchTab
+export type RunTab = TabBase & { kind: 'run' }
+export type Tab = FileTab | DiffTab | CommitTab | TerminalTab | ScmTab | WelcomeTab | ExplorerTab | SqlTab | SearchTab | RunTab
 
-export const fixedKinds = ['explorer', 'scm', 'search'] as const
+export const fixedKinds = ['explorer', 'scm', 'run', 'search'] as const
 export type FixedKind = (typeof fixedKinds)[number]
 
 export function isFixed(t: Tab): boolean {
@@ -140,9 +149,15 @@ export type State = {
   conn: Connection
   tabs: Tab[]
   active: string | null
-  palette: null | { mode: 'commands' | 'themes'; text?: string }
+  palette: null | { mode: 'commands' | 'themes' | 'icons'; text?: string }
   status: Record<string, PaneStatus>
   previewTheme: string | null
+  previewIcons: string | null
+  /** What each terminal pane is running, by pane id. */
+  procs: Record<string, string>
+  runs: Run[]
+  /** The run whose output covers the panes, if any. */
+  runView: string | null
   session: number
   draggingTab: string | null
   hints: Record<string, string[]>
@@ -161,6 +176,10 @@ let state: State = {
   palette: null,
   status: {},
   previewTheme: null,
+  previewIcons: null,
+  procs: {},
+  runs: [],
+  runView: null,
   session: 0,
   draggingTab: null,
   hints: {},

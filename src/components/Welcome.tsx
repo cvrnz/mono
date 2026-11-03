@@ -37,7 +37,8 @@ export default function Welcome({ id, active }: { id: string; active: boolean })
   const items = useMemo(
     () => [
       ['Explorer', keyLabel('E')],
-      ['Find files and text', keyLabel('F')],
+      ['Find in this file', keyLabel('F')],
+      ['Search files and text', keyLabel('Shift+F')],
       ['Terminal', keyLabel('T')],
       ['SQL', keyLabel('D')],
       ['Split terminal', keyLabel('\\')],
@@ -45,6 +46,7 @@ export default function Welcome({ id, active }: { id: string; active: boolean })
       ['Switch tabs', `${keyLabel('H')}  ${keyLabel('L')}`],
       ['Switch projects', `${keyLabel('1')}  ${keyLabel('2')}  …`],
       ['Git', keyLabel('G')],
+      ['Run', keyLabel('Shift+R')],
       ['Close', keyLabel('W')],
       ['Command palette', keyLabel('P')],
     ],

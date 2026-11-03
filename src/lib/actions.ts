@@ -39,7 +39,7 @@ function emptySpot(): S.Tab | undefined {
 }
 
 export function activate(id: string) {
-  S.set({ active: id })
+  S.set({ active: id, runView: null })
   focusActive()
 }
 
@@ -140,6 +140,12 @@ export function focusSidebar() {
   if (tab) requestAnimationFrame(() => pane(tab.id)?.focus())
 }
 
+export const explorerRefreshers = new Set<() => void>()
+export function refreshExplorer() {
+  if (!explorerRefreshers.size) showSidebar('explorer', false)
+  explorerRefreshers.forEach((f) => f())
+}
+
 export function showSidebar(kind: S.FixedKind | null, focus = true) {
   S.set({ palette: null })
   if (S.sidebar() !== kind) updateSettings({ sidebar: kind ?? 'none' })
@@ -157,7 +163,22 @@ function toggleFixed(kind: S.FixedKind) {
 
 export const openExplorer = () => toggleFixed('explorer')
 export const openScm = () => toggleFixed('scm')
+export const toggleRun = () => toggleFixed('run')
 export const toggleSearch = () => toggleFixed('search')
+
+/** ⌘F: find in the file or terminal in front. */
+export function findInPane() {
+  const tab = S.activeTab()
+  const viewing = S.get().runView && pane('run-view')
+  if (viewing) return viewing.find?.()
+  if (!tab || S.isFixed(tab)) return
+  const h = pane(S.focusedPane(tab)) ?? pane(tab.id)
+  if (h?.find) return h.find()
+  const ed = h?.editor
+  if (!ed) return
+  ed.focus()
+  ed.getAction('actions.find')?.run()
+}
 export const toggleSidebar = () => showSidebar(S.sidebar() ? null : lastSidebar)
 
 let lastSidebar: S.FixedKind = 'explorer'

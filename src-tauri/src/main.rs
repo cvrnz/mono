@@ -261,16 +261,62 @@ fn disconnect(state: State<'_, App>, conn: String) {
     disconnect_conn(&state, &conn);
 }
 
+async fn conn_call(c: &Conn, method: &str, params: Value) -> Result<Value, String> {
+    match c {
+        Conn::Local(s) => {
+            let (s, method) = (s.clone(), method.to_string());
+            tauri::async_runtime::spawn_blocking(move || s.call(&method, params)).await.map_err(|e| e.to_string())?
+        }
+        Conn::Docker(a) => a.call(method, params).await,
+    }
+}
+
 #[tauri::command]
 async fn call(state: State<'_, App>, conn: String, method: String, params: Value) -> Result<Value, String> {
     let c = state.conns.lock().unwrap().get(&conn).cloned().ok_or("not connected")?;
-    match c.as_ref() {
-        Conn::Local(s) => {
-            let s = s.clone();
-            tauri::async_runtime::spawn_blocking(move || s.call(&method, params)).await.map_err(|e| e.to_string())?
+    conn_call(&c, &method, params).await
+}
+
+/// "notes.txt" → "notes copy.txt", then "notes copy 2.txt", the way Finder names duplicates.
+async fn free_name(c: &Conn, dir: &str, name: &str) -> Result<String, String> {
+    let (stem, ext) = match name.rfind('.') {
+        Some(i) if i > 0 => (&name[..i], &name[i..]),
+        _ => (name, ""),
+    };
+    for n in 0..1000 {
+        let candidate = match n {
+            0 => name.to_string(),
+            1 => format!("{stem} copy{ext}"),
+            _ => format!("{stem} copy {n}{ext}"),
+        };
+        let path = format!("{}/{candidate}", dir.trim_end_matches('/'));
+        let stat = conn_call(c, "fs.stat", json!({ "path": path })).await?;
+        if stat["exists"] != Value::Bool(true) {
+            return Ok(path);
         }
-        Conn::Docker(a) => a.call(&method, params).await,
     }
+    Err(format!("couldn't find a free name for {name}"))
+}
+
+/// Copies files dropped from the desktop into a folder of the project.
+#[tauri::command]
+async fn drop_files(state: State<'_, App>, conn: String, paths: Vec<String>, dir: String) -> Result<Vec<String>, String> {
+    let c = state.conns.lock().unwrap().get(&conn).cloned().ok_or("not connected")?;
+    let mut made = vec![];
+    for from in paths {
+        let name = std::path::Path::new(&from).file_name().map(|n| n.to_string_lossy().into_owned()).ok_or("can't copy that")?;
+        let to = free_name(&c, &dir, &name).await?;
+        match c.as_ref() {
+            Conn::Local(_) => {
+                conn_call(&c, "fs.copy", json!({ "from": from, "to": to })).await?;
+            }
+            Conn::Docker(a) => {
+                docker::run(&a.docker, &["cp", "--", &from, &format!("{}:{to}", a.container)]).await?;
+            }
+        }
+        made.push(to);
+    }
+    Ok(made)
 }
 
 #[tauri::command]
@@ -432,6 +478,7 @@ fn main() {
             connect,
             disconnect,
             call,
+            drop_files,
             sql_connect,
             sql_query,
             sql_cancel,

@@ -174,3 +174,56 @@ fn repos_are_found_to_the_chosen_depth() {
     assert_eq!(names(json!(5)), ["a", "five/b/c/d/e", "x/y/z/deep", "x/y/z/deep/inner"]);
     assert_eq!(names(json!(1)), ["a"]);
 }
+
+fn wait_for(events: &Events, what: &str, pick: impl Fn(&Value) -> bool) -> Value {
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        if let Some((_, p)) = events.lock().unwrap().iter().find(|(e, p)| e == what && pick(p)) {
+            return p.clone();
+        }
+        assert!(Instant::now() < deadline, "no {what} event");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[test]
+fn a_terminal_can_run_one_command() {
+    let (s, events) = service();
+    let (_d, w) = dir();
+    let opened = s.call("term.open", json!({ "cols": 80, "rows": 24, "cwd": w, "command": "echo do$(echo ne); exit 3" })).unwrap();
+    let id = opened["id"].clone();
+    let exit = wait_for(&events, "term.exit", |p| p["id"] == id);
+    assert_eq!(exit["code"], json!(3));
+    let output: Vec<u8> = events
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(e, p)| e == "term.data" && p["id"] == id)
+        .flat_map(|(_, p)| B64.decode(p["data"].as_str().unwrap()).unwrap())
+        .collect();
+    assert!(String::from_utf8_lossy(&output).contains("done"));
+}
+
+#[test]
+fn a_terminal_names_the_process_running_in_it() {
+    let (s, events) = service();
+    let (_d, w) = dir();
+    let opened = s.call("term.open", json!({ "cols": 80, "rows": 24, "cwd": w })).unwrap();
+    let id = opened["id"].clone();
+    s.call("term.input", json!({ "id": id, "data": B64.encode("sleep 5\r") })).unwrap();
+    wait_for(&events, "term.proc", |p| p["id"] == id && p["name"] == json!("sleep"));
+    s.call("term.close", json!({ "id": id })).unwrap();
+}
+
+#[test]
+fn watched_folders_report_changes() {
+    let (s, events) = service();
+    let (_d, w) = dir();
+    std::fs::create_dir(format!("{w}/sub")).unwrap();
+    s.call("fs.watch", json!({ "paths": [w, format!("{w}/sub")] })).unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    std::fs::write(format!("{w}/sub/new.txt"), "x").unwrap();
+    let sub = format!("{w}/sub");
+    wait_for(&events, "fs.changed", |p| p["dirs"].as_array().unwrap().iter().any(|d| d == &json!(sub)));
+    s.call("fs.watch", json!({ "paths": [] })).unwrap();
+}

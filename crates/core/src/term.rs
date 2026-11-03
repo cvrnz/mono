@@ -27,6 +27,7 @@ pub struct OpenArgs {
     cols: Option<u16>,
     rows: Option<u16>,
     cwd: Option<String>,
+    command: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -65,6 +66,23 @@ fn hang_up(pid: Option<u32>) {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn proc_name(pid: i32) -> Option<String> {
+    std::fs::read_to_string(format!("/proc/{pid}/comm")).ok().map(|s| s.trim().to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn proc_name(pid: i32) -> Option<String> {
+    let mut buf = [0u8; 256];
+    let n = unsafe { libc::proc_name(pid, buf.as_mut_ptr().cast(), buf.len() as u32) };
+    (n > 0).then(|| String::from_utf8_lossy(&buf[..n as usize]).into_owned())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn proc_name(_: i32) -> Option<String> {
+    None
+}
+
 impl Terminals {
     pub fn new(emit: Emit) -> Self {
         Terminals { all: Default::default(), next: AtomicU64::new(0), emit }
@@ -77,6 +95,10 @@ impl Terminals {
         let cwd = a.cwd.as_deref().map(expand_home).filter(|p| p.is_dir()).unwrap_or_else(home_dir);
         let mut cmd = CommandBuilder::new(&shell);
         cmd.arg("-l");
+        if let Some(c) = a.command.as_deref().filter(|c| !c.trim().is_empty()) {
+            cmd.arg("-c");
+            cmd.arg(c);
+        }
         cmd.cwd(cwd);
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
@@ -105,6 +127,22 @@ impl Terminals {
                 }
             }
             let _ = done_tx.send(());
+        });
+        let (emit, all, tid) = (self.emit.clone(), self.all.clone(), id.clone());
+        std::thread::spawn(move || {
+            let mut last = String::new();
+            loop {
+                std::thread::sleep(Duration::from_millis(600));
+                let leader = match all.lock().unwrap().get(&tid) {
+                    Some(t) => t.master.process_group_leader(),
+                    None => break,
+                };
+                let name = leader.and_then(proc_name).unwrap_or_default();
+                if !name.is_empty() && name != last {
+                    emit("term.proc", json!({ "id": tid, "name": name }));
+                    last = name;
+                }
+            }
         });
         let emit = self.emit.clone();
         let all = self.all.clone();

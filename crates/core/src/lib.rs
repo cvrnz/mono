@@ -3,6 +3,7 @@ mod proc;
 mod scm;
 mod search;
 mod term;
+mod watch;
 
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -14,6 +15,7 @@ pub type Emit = Arc<dyn Fn(&str, Value) + Send + Sync>;
 
 pub struct Service {
     terms: term::Terminals,
+    watch: watch::Watch,
 }
 
 fn args<T: DeserializeOwned>(params: Value) -> Result<T, String> {
@@ -27,7 +29,7 @@ fn json<T: serde::Serialize>(v: T) -> Result<Value, String> {
 
 impl Service {
     pub fn new(emit: Emit) -> Self {
-        Service { terms: term::Terminals::new(emit) }
+        Service { terms: term::Terminals::new(emit.clone()), watch: watch::Watch::new(emit) }
     }
 
     pub fn call(&self, method: &str, params: Value) -> Result<Value, String> {
@@ -41,6 +43,7 @@ impl Service {
             "fs.copy" => json(files::copy(args(params)?)?),
             "fs.delete" => json(files::remove(args(params)?)?),
             "fs.stat" => json(files::stat(args(params)?)?),
+            "fs.watch" => json(self.watch.set(args(params)?)?),
             "fs.files" => json(search::files(args(params)?)),
             "fs.grep" => json(search::grep(args(params)?)?),
             "scm.repos" => json(scm::repos(args(params)?)),
@@ -60,6 +63,7 @@ impl Service {
 
     pub fn close(&self) {
         self.terms.close_all();
+        self.watch.stop();
     }
 }
 

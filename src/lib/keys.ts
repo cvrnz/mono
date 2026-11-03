@@ -10,7 +10,9 @@ const bindings: Binding[] = [
   { code: 'KeyS', run: () => A.save() },
   { code: 'KeyN', run: () => A.newTab() },
   { code: 'KeyP', run: () => openPalette() },
-  { code: 'KeyF', run: () => A.toggleSearch() },
+  { code: 'KeyF', run: () => A.findInPane() },
+  { code: 'KeyF', shift: true, run: () => A.toggleSearch() },
+  { code: 'KeyR', shift: true, run: () => A.toggleRun() },
   { code: 'KeyG', run: () => A.openScm() },
   { code: 'KeyE', run: () => A.openExplorer() },
   { code: 'KeyB', run: () => A.toggleSidebar() },
@@ -27,7 +29,7 @@ const bindings: Binding[] = [
 
 function openPalette() {
   const s = S.get()
-  S.set({ palette: s.palette ? null : { mode: 'commands' }, previewTheme: null })
+  S.set({ palette: s.palette ? null : { mode: 'commands' }, previewTheme: null, previewIcons: null })
   if (s.palette) A.focusActive()
 }
 
@@ -51,7 +53,7 @@ function onKeyDown(e: KeyboardEvent) {
     if (s.palette) {
       e.preventDefault()
       e.stopPropagation()
-      S.set({ palette: null, previewTheme: null })
+      S.set({ palette: null, previewTheme: null, previewIcons: null })
       A.focusActive()
     }
     return

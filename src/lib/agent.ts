@@ -36,6 +36,7 @@ export function agentFor(project: string | (() => string)) {
     rename: (from: string, to: string) => call<void>(conn(), 'fs.rename', { from, to }),
     copy: (from: string, to: string) => call<void>(conn(), 'fs.copy', { from, to }),
     remove: (path: string) => call<void>(conn(), 'fs.delete', { path }),
+    watch: (paths: string[]) => call<void>(conn(), 'fs.watch', { paths }),
     stat: (path: string) => call<{ exists: boolean; dir: boolean }>(conn(), 'fs.stat', { path }),
     files: (root: string) => call<{ files: string[]; truncated: boolean }>(conn(), 'fs.files', { root }),
     grep: (root: string, query: string, opts: GrepOptions = {}) => call<{ matches: Match[]; truncated: boolean }>(conn(), 'fs.grep', { root, query, ...opts }),
@@ -46,7 +47,8 @@ export function agentFor(project: string | (() => string)) {
     show: (repo: string, hash: string) => call<{ text: string }>(conn(), 'scm.show', { repo, hash }),
     fetch: (repo: string, name: string) => call<Repo>(conn(), 'scm.fetch', { repo, name }),
     sync: (repo: string) => call<void>(conn(), 'scm.sync', { repo }),
-    termOpen: (cols: number, rows: number, cwd: string) => call<{ id: string; shell: string }>(conn(), 'term.open', { cols, rows, cwd }),
+    termOpen: (cols: number, rows: number, cwd: string, command?: string) =>
+      call<{ id: string; shell: string }>(conn(), 'term.open', { cols, rows, cwd, command }),
     termInput: (id: string, data: string) => call<void>(conn(), 'term.input', { id, data }),
     termResize: (id: string, cols: number, rows: number) => call<void>(conn(), 'term.resize', { id, cols, rows }),
     termClose: (id: string) => call<void>(conn(), 'term.close', { id }),
@@ -54,6 +56,9 @@ export function agentFor(project: string | (() => string)) {
 }
 
 export const agent = agentFor(() => S.get().project)
+
+/** Copies files from the desktop into a folder of the project; returns the new paths. */
+export const dropFiles = (conn: string, paths: string[], dir: string) => invoke<string[]>('drop_files', { conn, paths, dir })
 
 type AgentEvent = { conn: string; event: string; params: any }
 type Handler = (params: any, project: string) => void

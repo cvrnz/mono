@@ -1,7 +1,8 @@
 import { Menu } from '@tauri-apps/api/menu'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { agentFor, type Entry } from '../lib/agent'
-import { openFile, type OpenOptions } from '../lib/actions'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { agentFor, dropFiles, onAgent, type Entry } from '../lib/agent'
+import { explorerRefreshers, openFile, type OpenOptions } from '../lib/actions'
 import { copyText, errorText } from '../lib/bridge'
 import { choose, prompt, toast } from '../lib/dialogs'
 import { register } from '../lib/panes'
@@ -17,7 +18,8 @@ type Node = { path: string; name: string; dir: boolean; link: boolean; depth: nu
 
 type Props = { tab: S.ExplorerTab; active: boolean }
 type Move = { from: string; to: string }
-type Clip = { op: 'copy' | 'cut'; path: string; project: string }
+type Clip = { op: 'copy' | 'cut'; paths: string[]; project: string }
+type Drag = { from: string; paths: string[]; over: string | null }
 
 let clip: Clip | null = null
 const clipListeners = new Set<() => void>()
@@ -42,6 +44,8 @@ function Chevron({ open }: { open: boolean }) {
   )
 }
 
+const items = (n: number) => `${n} item${n === 1 ? '' : 's'}`
+
 function copyName(name: string, dir: boolean, n: number): string {
   const dot = dir ? -1 : name.lastIndexOf('.')
   const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, '']
@@ -65,12 +69,22 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
   const [children, setChildren] = useState<Map<string, Entry[]>>(new Map())
   const [expanded, setExpanded] = useState<Set<string>>(new Set([root]))
   const [selected, setSelected] = useState<string>(root)
+  // Rows picked with ⌘/Shift-click; empty means just the selected row.
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const anchor = useRef(root)
+  const select = useCallback((path: string) => {
+    setSelected(path)
+    setPicked(new Set())
+    anchor.current = path
+  }, [])
   const [error, setError] = useState('')
   const tree = useRef<HTMLDivElement>(null)
   const [moving, setMoving] = useState<string | null>(null)
-  const [dragging, setDragging] = useState<{ from: string; over: string | null } | null>(null)
+  const [dragging, setDragging] = useState<Drag | null>(null)
+  const [outside, setOutside] = useState<{ over: string | null; count: number } | null>(null)
   const clipped = useClip()
-  const cutPath = clipped?.op === 'cut' && clipped.project === project ? clipped.path : null
+  const cutPaths = clipped?.op === 'cut' && clipped.project === project ? clipped.paths : []
+  const isCut = (path: string) => cutPaths.some((c) => isInside(path, c))
   S.useStore((s) => s.previewTheme ?? s.settings.theme)
 
   const load = useCallback(async (dir: string): Promise<Entry[]> => {
@@ -118,8 +132,8 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     const dirs: string[] = []
     for (let d = dirname(reveal); d !== root && isInside(d, root); d = dirname(d)) dirs.push(d)
     setExpanded((s) => (dirs.every((d) => s.has(d)) ? s : new Set([...s, root, ...dirs])))
-    Promise.all(dirs.filter((d) => !children.has(d)).map(load)).then(() => setSelected(reveal))
-  }, [root, reveal, load])
+    Promise.all(dirs.filter((d) => !children.has(d)).map(load)).then(() => select(reveal))
+  }, [root, reveal, load, select])
 
   useEffect(() => register(tab.id, { focus: () => tree.current?.focus() }), [tab.id])
 
@@ -138,6 +152,30 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
 
   const index = Math.max(0, nodes.findIndex((n) => n.path === selected))
   const node = nodes[index]
+  const isPicked = (path: string) => (picked.size ? picked.has(path) : path === node?.path)
+
+  /** The rows an action applies to: everything picked when n is one of them, otherwise just n. */
+  const chosen = (n: Node = node): Node[] => {
+    const list = picked.size > 1 && picked.has(n.path) ? nodes.filter((m) => picked.has(m.path)) : [n]
+    return list.filter((m) => m.path !== root && !list.some((o) => o !== m && isInside(m.path, o.path)))
+  }
+
+  const pickRange = (path: string) => {
+    const a = nodes.findIndex((n) => n.path === (picked.size ? anchor.current : selected))
+    const b = nodes.findIndex((n) => n.path === path)
+    if (a < 0 || b < 0) return select(path)
+    setSelected(path)
+    setPicked(new Set(nodes.slice(Math.min(a, b), Math.max(a, b) + 1).map((n) => n.path)))
+  }
+
+  const togglePick = (path: string) => {
+    const next = new Set(picked.size ? picked : [selected])
+    if (next.has(path) && next.size > 1) next.delete(path)
+    else next.add(path)
+    setPicked(next)
+    setSelected(path)
+    anchor.current = path
+  }
 
   useEffect(() => {
     tree.current?.querySelector('.row.selected')?.scrollIntoView({ block: 'nearest' })
@@ -147,7 +185,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     const isOpen = expanded.has(n.path)
     const want = open ?? !isOpen
     if (want === isOpen) return
-    if (want && !children.has(n.path)) await load(n.path)
+    if (want) await load(n.path)
     setExpanded((s) => {
       const next = new Set(s)
       if (want) next.add(n.path)
@@ -178,7 +216,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     }
     await reloadAround(path)
     loadChanges()
-    if (isDir) setSelected(path)
+    if (isDir) select(path)
     else openFile(path)
   }
 
@@ -190,7 +228,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     }
     await Promise.all(dirs.map(load))
     setExpanded((s) => new Set([...s, ...dirs]))
-    setSelected(path)
+    select(path)
   }
 
   const rename = async (n: Node = node) => {
@@ -204,50 +242,78 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
   }
 
   const remove = async (n: Node = node) => {
-    if (n.path === root) return
-    const at = nodes.indexOf(n)
-    const v = await choose(`Delete ${n.name}?`, n.dir ? 'The folder and everything in it will be deleted.' : 'The file will be deleted.', [
-      { label: 'Cancel', value: 'cancel', variant: 'tertiary' },
-      { label: 'Delete', value: 'delete', variant: 'danger' },
-    ])
+    const list = chosen(n)
+    if (!list.length) return
+    const one = list.length === 1 ? list[0] : null
+    const names = list.slice(0, 5).map((m) => m.name).join(', ') + (list.length > 5 ? `, and ${list.length - 5} more` : '')
+    const v = await choose(
+      one ? `Delete ${one.name}?` : `Delete ${items(list.length)}?`,
+      one ? (one.dir ? 'The folder and everything in it will be deleted.' : 'The file will be deleted.') : `${names} will be deleted, folders with everything in them.`,
+      [
+        { label: 'Cancel', value: 'cancel', variant: 'tertiary' },
+        { label: 'Delete', value: 'delete', variant: 'danger' },
+      ],
+    )
     if (v !== 'delete') return
-    try {
-      await agent.remove(n.path)
-    } catch (err) {
-      toast(errorText(err), 'error')
-      return
+    const gone = (path: string) => list.some((m) => isInside(path, m.path))
+    const last = nodes.findLastIndex((m) => gone(m.path))
+    const next = nodes.slice(last + 1).find((m) => !gone(m.path)) ?? nodes.slice(0, last).findLast((m) => !gone(m.path))
+    for (const m of list) {
+      try {
+        await agent.remove(m.path)
+      } catch (err) {
+        toast(errorText(err), 'error')
+        break
+      }
     }
-    if (cutPath && isInside(cutPath, n.path)) setClip(null)
-    const next = nodes[at + 1] && !isInside(nodes[at + 1].path, n.path) ? nodes[at + 1] : nodes[at - 1]
-    await load(dirname(n.path))
+    if (cutPaths.some(gone)) setClip(null)
+    await Promise.all([...new Set(list.map((m) => dirname(m.path)))].map(load))
     loadChanges()
-    if (next) setSelected(next.path)
+    if (next) select(next.path)
   }
 
   const putOnClip = (op: Clip['op'], n: Node = node) => {
-    if (n.path === root) return
-    setClip({ op, path: n.path, project })
-    toast(`${op === 'cut' ? 'Cut' : 'Copied'} ${n.name}, paste it into a folder`)
+    const list = chosen(n)
+    if (!list.length) return
+    setClip({ op, paths: list.map((m) => m.path), project })
+    toast(`${op === 'cut' ? 'Cut' : 'Copied'} ${list.length === 1 ? list[0].name : items(list.length)}, paste into a folder`)
   }
 
   const paste = async (n: Node = node) => {
     if (!clipped || clipped.project !== project) return
     const dir = targetDir(n)
-    const { op, path: from } = clipped
+    const { op, paths } = clipped
     if (op === 'cut') {
-      if (dirname(from) === dir) return
       setClip(null)
-      await moveInto(from, dir)
+      await moveAll(paths.filter((from) => dirname(from) !== dir), dir)
       return
     }
+    let last = ''
     try {
-      const dirFrom = (await agent.stat(from)).dir
-      let to = join(dir, basename(from))
-      for (let i = 1; (await agent.stat(to)).exists; i++) to = join(dir, copyName(basename(from), dirFrom, i))
-      await agent.copy(from, to)
-      await reloadAround(to)
+      for (const from of paths) {
+        const dirFrom = (await agent.stat(from)).dir
+        let to = join(dir, basename(from))
+        for (let i = 1; (await agent.stat(to)).exists; i++) to = join(dir, copyName(basename(from), dirFrom, i))
+        await agent.copy(from, to)
+        last = to
+      }
+    } catch (err) {
+      toast(errorText(err), 'error')
+    }
+    if (!last) return
+    await reloadAround(last)
+    loadChanges()
+    toast(`Pasted ${paths.length === 1 ? basename(last) : items(paths.length)} into ${pretty(dir, '', home)}`)
+  }
+
+  const dropIn = async (paths: string[], dir: string) => {
+    try {
+      const made = await dropFiles(project, paths, dir)
+      if (!made.length) return
+      await reloadAround(made[0])
+      setPicked(new Set(made))
       loadChanges()
-      toast(`Pasted ${basename(to)} into ${pretty(dir, '', home)}`)
+      toast(`Copied ${made.length === 1 ? basename(made[0]) : items(made.length)} into ${pretty(dir, '', home)}`)
     } catch (err) {
       toast(errorText(err), 'error')
     }
@@ -262,7 +328,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
   const showMenu = async (e: React.MouseEvent, n: Node) => {
     e.preventDefault()
     e.stopPropagation()
-    setSelected(n.path)
+    if (!(picked.size > 1 && picked.has(n.path))) select(n.path)
     const isRoot = n.path === root
     const canPaste = !!clipped && clipped.project === project
     const sep = { item: 'Separator' } as const
@@ -306,15 +372,20 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     return true
   }
 
-  const moveInto = async (from: string, dir: string) => {
-    const to = join(dir, basename(from))
-    if (from === root || to === from) return
-    if (isInside(dir, from)) {
-      toast(`Can't move ${basename(from)} into itself`, 'error')
-      return
+  const moveAll = async (froms: string[], dir: string) => {
+    let moved = 0
+    for (const from of froms) {
+      const to = join(dir, basename(from))
+      if (from === root || to === from) continue
+      if (isInside(dir, from)) {
+        toast(`Can't move ${basename(from)} into itself`, 'error')
+        continue
+      }
+      if (await relocate(from, to)) moved++
     }
-    if (await relocate(from, to)) toast(`Moved ${basename(from)} to ${pretty(dir, '', home)}`)
+    if (moved) toast(`Moved ${froms.length === 1 ? basename(froms[0]) : items(moved)} to ${pretty(dir, '', home)}`)
   }
+  const moveInto = (from: string, dir: string) => moveAll([from], dir)
 
   const undo = async (redo = false) => {
     const { undo: done, redo: undone } = history.current
@@ -330,51 +401,71 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
   }
 
   const destination = (n: Node | undefined) => (n ? targetDir(n) : root)
-  const moveDest = moving ? destination(node) : dragging?.over ?? null
+  const moveDest = moving ? destination(node) : (dragging?.over ?? outside?.over ?? null)
+  const dropWhat = moving ? basename(moving) : dragging ? (dragging.paths.length === 1 ? basename(dragging.from) : items(dragging.paths.length)) : items(outside?.count ?? 0)
+
+  const dirAt = (x: number, y: number): string | null => {
+    const hit = document.elementFromPoint(x, y) as HTMLElement | null
+    const row = hit?.closest<HTMLElement>('.explorer-tree .row[data-path]')
+    const target = row ? nodes.find((m) => m.path === row.dataset.path) : undefined
+    if (target) return destination(target)
+    return hit?.closest('.explorer-tree') === tree.current ? root : null
+  }
 
   const startDrag = (e: React.MouseEvent, n: Node) => {
     if (e.button !== 0 || n.path === root) return
     const x = e.clientX
     const y = e.clientY
+    const paths = chosen(n).map((m) => m.path)
     let started = false
+    let cancelled = false
     let over: string | null = null
     let opener: ReturnType<typeof setTimeout> | undefined
     const place = (ev: MouseEvent) => {
       if (ghost.current) ghost.current.style.transform = `translate(${ev.clientX + 14}px, ${ev.clientY + 10}px)`
     }
-    const rowAt = (ev: MouseEvent) => (document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null)?.closest<HTMLElement>('.explorer-tree .row[data-path]')
     const onMove = (ev: MouseEvent) => {
       if (!started) {
         if (Math.abs(ev.clientX - x) + Math.abs(ev.clientY - y) < 5) return
         started = true
         document.body.classList.add('dragging-file')
-        setDragging({ from: n.path, over: null })
+        setDragging({ from: n.path, paths, over: null })
       }
       requestAnimationFrame(() => place(ev))
-      const row = rowAt(ev)
-      const target = row ? nodes.find((m) => m.path === row.dataset.path) : undefined
-      const inTree = !row && (document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null)?.closest('.explorer-tree') === tree.current
-      const dir = target ? destination(target) : inTree ? root : null
+      const dir = dirAt(ev.clientX, ev.clientY)
       if (dir !== over) {
         over = dir
         clearTimeout(opener)
+        const target = nodes.find((m) => m.path === dir)
         if (target?.dir && !expanded.has(target.path)) opener = setTimeout(() => toggle(target, true), 700)
-        setDragging({ from: n.path, over: dir })
+        setDragging({ from: n.path, paths, over: dir })
       }
     }
-    const onUp = () => {
+    const stop = () => {
       window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('keydown', onKey, true)
       clearTimeout(opener)
       document.body.classList.remove('dragging-file')
       setDragging(null)
+    }
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape' || !started) return
+      ev.preventDefault()
+      ev.stopPropagation()
+      cancelled = true
+      stop()
+    }
+    const onUp = () => {
+      window.removeEventListener('mouseup', onUp)
+      stop()
       if (!started) return
       dragged.current = true
       setTimeout(() => (dragged.current = false))
-      if (over) moveInto(n.path, over)
+      if (over && !cancelled) moveAll(paths, over)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    window.addEventListener('keydown', onKey, true)
   }
   const dragged = useRef(false)
   const ghost = useRef<HTMLDivElement>(null)
@@ -384,6 +475,62 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     await Promise.all([...expanded].map(load))
     loadChanges()
   }
+  const latest = useRef({ refresh, dirAt, dropIn, children })
+  latest.current = { refresh, dirAt, dropIn, children }
+
+  useEffect(() => {
+    const run = () => latest.current.refresh()
+    explorerRefreshers.add(run)
+    window.addEventListener('focus', run)
+    return () => {
+      explorerRefreshers.delete(run)
+      window.removeEventListener('focus', run)
+    }
+  }, [])
+
+  const watched = [...expanded].filter((d) => children.has(d)).sort().join('\n')
+  useEffect(() => {
+    agent.watch(watched ? watched.split('\n') : []).catch(() => {})
+  }, [agent, watched])
+  useEffect(() => () => void agent.watch([]).catch(() => {}), [agent])
+  useEffect(
+    () =>
+      onAgent('fs.changed', (p: { dirs: string[] }, conn) => {
+        if (conn !== project) return
+        const shown = p.dirs.filter((d) => latest.current.children.has(d))
+        if (!shown.length) return
+        shown.forEach(load)
+        loadChanges()
+      }),
+    [project, load, loadChanges],
+  )
+
+  useEffect(() => {
+    let webview
+    try {
+      webview = getCurrentWebview()
+    } catch {
+      return
+    }
+    let off: (() => void) | undefined
+    let live = true
+    webview
+      .onDragDropEvent(({ payload: p }) => {
+        if (p.type === 'leave') return setOutside(null)
+        const at = (q: { x: number; y: number }) => latest.current.dirAt(q.x / devicePixelRatio, q.y / devicePixelRatio)
+        if (p.type === 'drop') {
+          setOutside(null)
+          const dir = at(p.position)
+          if (dir && p.paths.length) latest.current.dropIn(p.paths, dir)
+        } else setOutside((o) => ({ over: at(p.position), count: p.type === 'enter' ? p.paths.length : (o?.count ?? 0) }))
+      })
+      .then((f) => (live ? (off = f) : f()))
+      .catch(() => {})
+    return () => {
+      live = false
+      off?.()
+    }
+  }, [])
 
   const onKeyDown = async (e: React.KeyboardEvent) => {
     const mod = S.isMac() ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
@@ -402,9 +549,14 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     }
     if (e.metaKey || e.ctrlKey || e.altKey) return
     const k = e.key
-    const go = (i: number) => setSelected(nodes[Math.max(0, Math.min(nodes.length - 1, i))].path)
-    if (moving && (k === 'Escape' || k === 'm')) {
-      setSelected(moving)
+    const clampTo = (i: number) => nodes[Math.max(0, Math.min(nodes.length - 1, i))].path
+    const go = (i: number) => select(clampTo(i))
+    if (!moving && e.shiftKey && (k === 'ArrowDown' || k === 'ArrowUp')) {
+      pickRange(clampTo(index + (k === 'ArrowDown' ? 1 : -1)))
+    } else if (!moving && k === 'Escape' && picked.size > 1) {
+      select(node.path)
+    } else if (moving && (k === 'Escape' || k === 'm')) {
+      select(moving)
       setMoving(null)
     } else if (moving && k === 'Enter') {
       const from = moving
@@ -413,14 +565,19 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     } else if (moving && !['j', 'k', 'g', 'G', 'h', 'l', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(k)) {
       // While moving, only the keys that pick a folder do anything.
     } else if (k === 'm') {
-      if (node.path !== root) setMoving(node.path)
+      if (node.path !== root) {
+        setPicked(new Set())
+        setMoving(node.path)
+      }
     } else if (k === 'j' || k === 'ArrowDown') go(index + 1)
     else if (k === 'k' || k === 'ArrowUp') go(index - 1)
     else if (k === 'g' || k === 'Home') go(0)
     else if (k === 'G' || k === 'End') go(nodes.length - 1)
     else if (k === 'PageDown') go(index + 15)
     else if (k === 'PageUp') go(index - 15)
-    else if (k === 'Enter' || k === 'o') activate(node)
+    else if ((k === 'Enter' || k === 'o') && picked.size > 1) {
+      for (const m of chosen()) if (!m.dir) openFile(m.path)
+    } else if (k === 'Enter' || k === 'o') activate(node)
     else if (k === ' ') activate(node, { preview: true, focus: false })
     else if (k === 'l' || k === 'ArrowRight') {
       if (node.dir) {
@@ -429,7 +586,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
       } else activate(node, { preview: true, focus: false })
     } else if (k === 'h' || k === 'ArrowLeft') {
       if (node.dir && expanded.has(node.path) && node.path !== root) toggle(node, false)
-      else if (node.path !== root) setSelected(dirname(node.path))
+      else if (node.path !== root) select(dirname(node.path))
     } else if (k === 'a') add()
     else if (k === 'A') add(node, true)
     else if (k === 'x') putOnClip('cut')
@@ -450,7 +607,9 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     tab.id,
     moving
       ? [`moving ${basename(moving)}`, '↑/↓ pick a folder', 'l/h expand/collapse', 'Enter move here', 'Esc cancel']
-      : ['j/k move', 'Enter open', 'l peek', 'a/A new file/folder', 'r rename', 'm move', 'x/c/p cut/copy/paste', `${keyLabel('Z')} undo`, 'd delete', 'y copy path', 'R refresh'],
+      : picked.size > 1
+        ? [`${items(picked.size)} picked`, 'Shift+↑/↓ extend', 'x/c/p cut/copy/paste', 'd delete', 'Enter open', 'Esc clear']
+        : ['j/k move', 'Enter open', 'l peek', 'a/A new file/folder', 'r rename', 'm move', 'x/c/p cut/copy/paste', `${keyLabel('Z')} undo`, 'd delete', 'y copy path', 'R refresh'],
   )
 
   return (
@@ -467,16 +626,25 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
               <div
                 key={n.path}
                 data-path={n.path}
-                className={`row ${i === index && !dragging ? 'selected' : ''} ${moveDest && moveDest !== root && isInside(n.path, moveDest) ? 'drop-zone' : ''} ${moveDest === n.path ? 'drop' : ''} ${(moving ?? dragging?.from) === n.path ? 'moving' : ''} ${cutPath && isInside(n.path, cutPath) ? 'cut' : ''}`}
+                className={`row ${isPicked(n.path) && !dragging ? 'selected' : ''} ${picked.size > 1 && i === index ? 'cursor' : ''} ${moveDest && moveDest !== root && isInside(n.path, moveDest) ? 'drop-zone' : ''} ${moveDest === n.path ? 'drop' : ''} ${moving === n.path || dragging?.paths.includes(n.path) ? 'moving' : ''} ${isCut(n.path) ? 'cut' : ''}`}
                 style={{ paddingLeft: `calc(0.6ch + ${n.depth * 16}px)` }}
                 onContextMenu={(e) => showMenu(e, n)}
                 onMouseDown={(e) => {
-                  if (moving) return
-                  setSelected(n.path)
+                  if (moving || e.button !== 0) return
+                  if (e.shiftKey || (S.isMac() ? e.metaKey : e.ctrlKey)) {
+                    e.preventDefault()
+                    tree.current?.focus()
+                    if (e.shiftKey) pickRange(n.path)
+                    else togglePick(n.path)
+                    return
+                  }
+                  if (picked.size > 1 && picked.has(n.path)) setSelected(n.path)
+                  else select(n.path)
                   startDrag(e, n)
                 }}
-                onClick={() => {
-                  if (dragged.current) return
+                onClick={(e) => {
+                  if (dragged.current || e.shiftKey || e.metaKey || e.ctrlKey) return
+                  if (picked.size > 1) select(n.path)
                   if (moving) setSelected(n.path)
                   else if (n.dir) {
                     if (n.path !== root) toggle(n)
@@ -491,10 +659,10 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
                 }}
               >
                 {n.dir ? <Chevron open={expanded.has(n.path)} /> : <span className="chev" />}
-                <FileIcon n={n} open={expanded.has(n.path)} root={n.path === root} />
+                <FileIcon n={n} open={expanded.has(n.path)} />
                 <span className={`name ${n.dir ? 'dir' : changed.has(n.path) ? `st-${changed.get(n.path)}` : n.link ? 'link' : ''}`}>{n.name}</span>
                 {n.link && <span className="dim"> →</span>}
-                {moveDest === n.path && <span className="drop-label">{'  ← '}{basename(moving ?? dragging?.from ?? '')}</span>}
+                {moveDest === n.path && <span className="drop-label">{'  ← '}{dropWhat}</span>}
                 {n.dir
                   ? (changedDirs.has(n.path) || changed.has(n.path)) && <span className="st-M" title="Has uncommitted changes"> •</span>
                   : changed.has(n.path) && <span className={`st-${changed.get(n.path)}`}>  {changed.get(n.path)}</span>}
@@ -505,7 +673,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
           {draggedNode && (
             <div className="drag-ghost" ref={ghost}>
               <FileIcon n={draggedNode} open={false} />
-              <span className={draggedNode.dir ? 'dir' : ''}>{draggedNode.name}</span>
+              <span className={draggedNode.dir ? 'dir' : ''}>{dragging.paths.length > 1 ? `${draggedNode.name} and ${items(dragging.paths.length - 1)} more` : draggedNode.name}</span>
               {dragging.over && <span className="dim">{'  → '}{pretty(dragging.over, root, '') || basename(root) || '/'}</span>}
             </div>
           )}

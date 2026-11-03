@@ -7,6 +7,7 @@ export type PaneHandle = {
   reveal?(line: number, col?: number, len?: number): void
   vimEx?(command: string): void
   shellInput?(): boolean
+  find?(): void
   editor?: Monaco.editor.ICodeEditor
   step?(dir: number): boolean
   enter?(dir: number): void

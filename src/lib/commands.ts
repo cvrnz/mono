@@ -47,6 +47,7 @@ function reportError(e: unknown) {
 
 export const commands: Command[] = [
   { name: 'Themes', desc: 'Pick a theme', run: () => loadUserThemes().then(() => S.set({ palette: { mode: 'themes' } })) },
+  { name: 'IconPacks', desc: 'Pick the file icons, with a preview', aliases: ['Icons', 'FileIcons'], run: () => S.set({ palette: { mode: 'icons' } }) },
   {
     name: 'AddTheme',
     desc: 'Download a theme from GitHub (owner/repo)',
@@ -112,6 +113,7 @@ export const commands: Command[] = [
     run: setNumber('Git depth', 'gitDepth', 0, 12),
   },
   { name: 'Explorer', desc: 'Show or hide the Explorer sidebar', keys: 'E', run: () => A.openExplorer() },
+  { name: 'RefreshExplorer', desc: 'Read the folders shown in the Explorer again', aliases: ['ReloadExplorer'], run: () => A.refreshExplorer() },
   { name: 'WordWrap', desc: 'Wrap long lines in editors (Option+Z)', aliases: ['wrap', 'ToggleWordWrap'], run: () => A.toggleWordWrap() },
   { name: 'Sidebar', desc: 'Show or hide the sidebar', keys: 'B', aliases: ['ToggleSidebar'], run: () => A.toggleSidebar() },
   {
@@ -124,10 +126,11 @@ export const commands: Command[] = [
   {
     name: 'Search',
     desc: 'Show or hide the Search sidebar',
-    keys: 'F',
-    aliases: ['Find'],
+    keys: 'Shift+F',
+    aliases: ['SearchFiles'],
     run: (args) => (args.trim() ? A.openSearch('text', args.trim()) : A.toggleSearch()),
   },
+  { name: 'Find', desc: 'Find in the file or terminal in front', keys: 'F', run: () => A.findInPane() },
   {
     name: 'Grep',
     desc: 'Search text in files',
@@ -141,6 +144,7 @@ export const commands: Command[] = [
     run: (args) => A.openSearch('files', args.trim()),
   },
   { name: 'Git', desc: 'Show or hide the Git sidebar', keys: 'G', aliases: ['SourceControl'], run: () => A.openScm() },
+  { name: 'Run', desc: 'Show or hide the Run sidebar, with your run configurations', keys: 'Shift+R', aliases: ['RunConfigurations', 'Tasks'], run: () => A.toggleRun() },
   { name: 'Terminal', desc: 'Terminal in new tab', keys: 'T', aliases: ['terminal', 'term'], run: () => A.openTerminal() },
   { name: 'Split', desc: 'Terminal in horizontal split', keys: '\\', aliases: ['split', 'sp'], run: () => A.splitTerminal('below') },
   {

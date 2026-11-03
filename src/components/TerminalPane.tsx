@@ -1,4 +1,5 @@
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
@@ -12,6 +13,7 @@ import * as S from '../lib/store'
 import { openShell, type Shell } from '../lib/terminals'
 import { TermVim } from '../lib/termVim'
 import { xtermTheme } from '../lib/themes'
+import TermFind from './TermFind'
 
 type Props = { id: string; tabId: string; cwd: string; active: boolean; centered: boolean }
 
@@ -20,6 +22,8 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
   const termRef = useRef<Terminal | null>(null)
   const vimRef = useRef<TermVim | null>(null)
   const [prompt, setPrompt] = useState<{ back: boolean } | null>(null)
+  const [finding, setFinding] = useState(false)
+  const searchRef = useRef<SearchAddon | null>(null)
   const tabRef = useRef(tabId)
   tabRef.current = tabId
   const fontSize = S.useStore((s) => s.settings.fontSize)
@@ -42,6 +46,9 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
     termRef.current = term
     const fit = new FitAddon()
     term.loadAddon(fit)
+    const search = new SearchAddon()
+    term.loadAddon(search)
+    searchRef.current = search
     term.open(host.current!)
     try {
       const webgl = new WebglAddon()
@@ -82,6 +89,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
             state = 'exited'
             term.write(`\r\n\x1b[2m[Process exited ${code}]\x1b[0m`)
           },
+          proc: (name) => S.set((s) => ({ procs: { ...s.procs, [id]: name.replace(/^-/, '') } })),
         })
         if (disposed) {
           sh.close()
@@ -183,7 +191,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
       if (term.options.theme?.background !== theme.background || term.options.theme?.foreground !== theme.foreground) term.options.theme = theme
     })
 
-    const unregister = register(id, { focus: () => term.focus(), shellInput: () => vim.mode === 'terminal' })
+    const unregister = register(id, { focus: () => term.focus(), shellInput: () => vim.mode === 'terminal', find: () => setFinding(true) })
     start()
 
     return () => {
@@ -201,7 +209,9 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
       S.set((s) => {
         const status = { ...s.status }
         delete status[id]
-        return { status }
+        const procs = { ...s.procs }
+        delete procs[id]
+        return { status, procs }
       })
     }
   }, [id])
@@ -226,6 +236,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
   return (
     <div className={`pane-inner ${centered ? 'centered' : ''}`} style={centered ? { maxWidth: width } : undefined}>
       <div ref={host} className="term-host" />
+      {finding && termRef.current && searchRef.current && <TermFind term={termRef.current} search={searchRef.current} onClose={() => setFinding(false)} />}
       {prompt && (
         <input
           className="term-search"
