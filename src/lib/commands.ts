@@ -144,6 +144,7 @@ export const commands: Command[] = [
     run: (args) => A.openSearch('files', args.trim()),
   },
   { name: 'Git', desc: 'Show or hide the Git sidebar', keys: 'G', aliases: ['SourceControl'], run: () => A.openScm() },
+  { name: 'GitLog', desc: 'Show or hide the log in the Git sidebar', aliases: ['Log', 'ToggleLog'], run: () => A.toggleGitLog() },
   { name: 'Run', desc: 'Show or hide the Run sidebar, with your run configurations', keys: 'Shift+R', aliases: ['RunConfigurations', 'Tasks'], run: () => A.toggleRun() },
   { name: 'Terminal', desc: 'Terminal in new tab', keys: 'T', aliases: ['terminal', 'term'], run: () => A.openTerminal() },
   { name: 'Split', desc: 'Terminal in horizontal split', keys: '\\', aliases: ['split', 'sp'], run: () => A.splitTerminal('below') },

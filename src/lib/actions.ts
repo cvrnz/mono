@@ -164,6 +164,11 @@ function toggleFixed(kind: S.FixedKind) {
 export const openExplorer = () => toggleFixed('explorer')
 export const openScm = () => toggleFixed('scm')
 export const toggleRun = () => toggleFixed('run')
+export function toggleGitLog() {
+  const show = S.get().settings.gitLog === false
+  updateSettings({ gitLog: show })
+  if (show) showSidebar('scm', false)
+}
 export const toggleSearch = () => toggleFixed('search')
 
 /** ⌘F: find in the file or terminal in front. */

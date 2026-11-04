@@ -1731,3 +1731,16 @@ button:disabled,
   outline: none !important;
   box-shadow: none !important;
 }
+.scm-log.collapsed {
+  flex: none;
+}
+.scm-log-toggle {
+  display: inline-flex;
+  align-items: center;
+  margin-left: -4px;
+}
+.scm-log-toggle .chev {
+  width: 14px;
+  height: 14px;
+  margin-right: 2px;
+}

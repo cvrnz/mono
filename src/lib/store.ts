@@ -30,6 +30,7 @@ export type Settings = {
   /** Run configurations, by project (see runs.ts targetKey). */
   runConfigs?: Record<string, RunConfig[]>
   wordWrap?: boolean
+  gitLog?: boolean
   session?: SavedSession
 }
 
