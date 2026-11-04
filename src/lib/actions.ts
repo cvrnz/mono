@@ -46,7 +46,10 @@ export function activate(id: string) {
 export function focusActive() {
   const tab = S.activeTab()
   if (!tab) return
-  requestAnimationFrame(() => pane(S.focusedPane(tab))?.focus())
+  requestAnimationFrame(() => {
+    // A command run from the palette may have opened it again (Themes, IconPacks), so leave its input focused.
+    if (!S.get().palette) pane(S.focusedPane(tab))?.focus()
+  })
 }
 
 export type OpenOptions = { preview?: boolean; focus?: boolean }
