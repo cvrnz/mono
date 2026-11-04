@@ -1,9 +1,10 @@
 import { Menu } from '@tauri-apps/api/menu'
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { agentFor, dropFiles, onAgent, type Entry } from '../lib/agent'
 import { explorerRefreshers, openFile, type OpenOptions } from '../lib/actions'
-import { copyText, errorText } from '../lib/bridge'
+import { copyText, errorText, invoke } from '../lib/bridge'
 import { choose, prompt, toast } from '../lib/dialogs'
 import { register } from '../lib/panes'
 import { basename, dirname, isInside, join, pretty } from '../lib/paths'
@@ -319,6 +320,27 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     }
   }
 
+  const inDocker = S.useProject((p) => p.conn.state !== 'idle' && p.conn.target.kind === 'docker')
+
+  const download = async (n: Node = node) => {
+    const list = chosen(n).length ? chosen(n) : [n]
+    try {
+      if (list.length === 1) {
+        const to = await saveDialog({ defaultPath: list[0].name, title: `Download ${list[0].name}` })
+        if (!to) return
+        await invoke('download_file', { conn: project, path: list[0].path, to })
+        toast(`Downloaded ${list[0].name}`)
+        return
+      }
+      const dir = await openDialog({ directory: true, title: `Download ${items(list.length)} into` })
+      if (typeof dir !== 'string') return
+      for (const m of list) await invoke('download_file', { conn: project, path: m.path, to: join(dir, m.name) })
+      toast(`Downloaded ${items(list.length)} into ${dir}`)
+    } catch (err) {
+      toast(errorText(err), 'error')
+    }
+  }
+
   const copyPath = (n: Node, relative: boolean) => {
     const text = relative ? pretty(n.path, root, '') || '.' : n.path
     copyText(text)
@@ -342,6 +364,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
         { text: 'Copy', accelerator: 'CmdOrCtrl+C', enabled: !isRoot, action: () => putOnClip('copy', n) },
         { text: 'Paste', accelerator: 'CmdOrCtrl+V', enabled: canPaste, action: () => paste(n) },
         sep,
+        ...(inDocker ? [{ text: chosen(n).length > 1 ? `Download ${items(chosen(n).length)}…` : 'Download…', action: () => download(n) }, sep] : []),
         { text: 'Copy Path', action: () => copyPath(n, false) },
         { text: 'Copy Relative Path', action: () => copyPath(n, true) },
         sep,

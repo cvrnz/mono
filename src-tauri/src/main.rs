@@ -298,6 +298,26 @@ async fn free_name(c: &Conn, dir: &str, name: &str) -> Result<String, String> {
     Err(format!("couldn't find a free name for {name}"))
 }
 
+/// Saves a file or folder of the project to a path on this computer.
+#[tauri::command]
+async fn download_file(state: State<'_, App>, conn: String, path: String, to: String) -> Result<(), String> {
+    let c = state.conns.lock().unwrap().get(&conn).cloned().ok_or("not connected")?;
+    match c.as_ref() {
+        Conn::Local(_) => {
+            if std::path::Path::new(&to).exists() {
+                let _ = std::fs::remove_dir_all(&to).or_else(|_| std::fs::remove_file(&to));
+            }
+            conn_call(&c, "fs.copy", json!({ "from": path, "to": to })).await.map(|_| ())
+        }
+        Conn::Docker(a) => {
+            if std::path::Path::new(&to).is_dir() {
+                std::fs::remove_dir_all(&to).map_err(|e| e.to_string())?;
+            }
+            docker::run(&a.docker, &["cp", "--", &format!("{}:{path}", a.container), &to]).await.map(|_| ())
+        }
+    }
+}
+
 /// Copies files dropped from the desktop into a folder of the project.
 #[tauri::command]
 async fn drop_files(state: State<'_, App>, conn: String, paths: Vec<String>, dir: String) -> Result<Vec<String>, String> {
@@ -479,6 +499,7 @@ fn main() {
             disconnect,
             call,
             drop_files,
+            download_file,
             sql_connect,
             sql_query,
             sql_cancel,
