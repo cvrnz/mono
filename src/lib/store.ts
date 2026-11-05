@@ -31,6 +31,8 @@ export type Settings = {
   runConfigs?: Record<string, RunConfig[]>
   wordWrap?: boolean
   gitLog?: boolean
+  /** Show Markdown and SVG files rendered beside their text (default on). */
+  preview?: boolean
   /** Shortcuts changed from their defaults, by command name ('' for none). */
   keys?: Record<string, string>
   session?: SavedSession

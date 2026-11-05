@@ -31,6 +31,7 @@ export function agentFor(project: string | (() => string)) {
     hello: (root?: string) => call<Hello>(conn(), 'hello', { root }),
     list: (path: string) => call<Entry[]>(conn(), 'fs.list', { path }),
     read: (path: string, limit?: number) => call<ReadResult>(conn(), 'fs.read', { path, limit }),
+    readBytes: (path: string) => call<{ data: string; tooLarge: boolean; size: number }>(conn(), 'fs.readBytes', { path }),
     write: (path: string, content: string) => call<void>(conn(), 'fs.write', { path, content }),
     create: (path: string, dir: boolean) => call<void>(conn(), 'fs.create', { path, dir }),
     rename: (from: string, to: string) => call<void>(conn(), 'fs.rename', { from, to }),

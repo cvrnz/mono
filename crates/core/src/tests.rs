@@ -33,6 +33,7 @@ fn files_create_write_read_list_rename_stat() {
     assert!(e.contains("a.txt already exists"), "{e}");
     std::fs::write(format!("{w}/Z.bin"), [1u8, 0, 2]).unwrap();
     assert_eq!(s.call("fs.read", json!({ "path": format!("{w}/Z.bin") })).unwrap()["binary"], json!(true));
+    assert_eq!(s.call("fs.readBytes", json!({ "path": format!("{w}/Z.bin") })).unwrap(), json!({ "data": B64.encode([1u8, 0, 2]), "tooLarge": false, "size": 3 }));
     let list = s.call("fs.list", json!({ "path": w })).unwrap();
     let names: Vec<&str> = list.as_array().unwrap().iter().map(|e| e["name"].as_str().unwrap()).collect();
     assert_eq!(names, ["sub", "Z.bin"]);

@@ -37,6 +37,7 @@ impl Service {
             "hello" => json(files::hello(args(params)?)?),
             "fs.list" => json(files::list(args(params)?)?),
             "fs.read" => json(files::read(args(params)?)?),
+            "fs.readBytes" => json(files::read_bytes(args(params)?)?),
             "fs.write" => json(files::write(args(params)?)?),
             "fs.create" => json(files::create(args(params)?)?),
             "fs.rename" => json(files::rename(args(params)?)?),

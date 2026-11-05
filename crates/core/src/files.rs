@@ -1,4 +1,5 @@
 use crate::proc::{clean, expand_home, home_dir, host_name, is_binary, login_shell, path_str, user_name};
+use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{ErrorKind, Write};
@@ -6,6 +7,7 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 const MAX_READ: u64 = 20 * 1024 * 1024;
+const MAX_BYTES: u64 = 100 * 1024 * 1024;
 
 fn err(e: std::io::Error, p: &Path) -> String {
     match e.kind() {
@@ -121,6 +123,34 @@ pub fn read(a: ReadArgs) -> Result<ReadResult, String> {
         return Ok(ReadResult { content: String::new(), binary: true, too_large: false, size });
     }
     Ok(ReadResult { content: String::from_utf8_lossy(&data).into_owned(), binary: false, too_large: false, size })
+}
+
+#[derive(Deserialize)]
+pub struct BytesArgs {
+    path: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BytesResult {
+    data: String,
+    too_large: bool,
+    size: u64,
+}
+
+/// Reads a file as base64, for images, spreadsheets and slides.
+pub fn read_bytes(a: BytesArgs) -> Result<BytesResult, String> {
+    let file = PathBuf::from(&a.path);
+    let meta = fs::metadata(&file).map_err(|e| err(e, &file))?;
+    if meta.is_dir() {
+        return Err(format!("{} is a folder", file.display()));
+    }
+    let size = meta.len();
+    if size > MAX_BYTES {
+        return Ok(BytesResult { data: String::new(), too_large: true, size });
+    }
+    let data = fs::read(&file).map_err(|e| err(e, &file))?;
+    Ok(BytesResult { data: B64.encode(data), too_large: false, size })
 }
 
 #[derive(Deserialize)]

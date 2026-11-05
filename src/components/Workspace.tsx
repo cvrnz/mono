@@ -13,6 +13,8 @@ import CommitPane from './CommitPane'
 import DiffPane, { diffLabel } from './DiffPane'
 import Hints from './Hints'
 import EditorPane from './EditorPane'
+import ViewerPane from './ViewerPane'
+import { viewerFor } from '../lib/viewers'
 import Explorer from './Explorer'
 import ScmPane from './ScmPane'
 import SqlPane from './SqlPane'
@@ -262,6 +264,7 @@ function paneStyle(index: number, count: number, dir: S.Splits['dir'] | undefine
 function content(tab: S.Tab, active: boolean, centered: boolean): ReactNode {
   switch (tab.kind) {
     case 'file':
+      if (viewerFor(tab.path)) return <ViewerPane key={tab.path} tab={tab} active={active} />
       return <EditorPane tab={tab} active={active} centered={centered} />
     case 'diff':
       return <DiffPane tab={tab} active={active} />

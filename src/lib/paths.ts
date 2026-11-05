@@ -57,3 +57,10 @@ export function pretty(p: string, root: string, home: string): string {
 export function isInside(p: string, dir: string): boolean {
   return p === dir || p.startsWith(dir.endsWith('/') ? dir : dir + '/')
 }
+
+/** The extension in lower case, without the dot ('' when there is none). */
+export function extname(p: string): string {
+  const name = basename(p)
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
+}

@@ -10,6 +10,8 @@ import { register } from '../lib/panes'
 import { basename } from '../lib/paths'
 import * as S from '../lib/store'
 import { setupVim, Vim } from '../lib/vim'
+import { previewFor } from '../lib/viewers'
+import Preview from './Preview'
 
 type Props = { tab: S.FileTab; active: boolean; centered: boolean }
 
@@ -28,10 +30,14 @@ export default function EditorPane({ tab, active, centered }: Props) {
   const pathRef = useRef(tab.path)
   const [note, setNote] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [text, setText] = useState('')
+  const textTimer = useRef(0)
 
   const settings = S.useStore((s) => s.settings)
   const project = S.useProjectId()
   const { vim, lineNumbers, fontSize, fontFamily, maxColumns, wordWrap } = settings
+  const previewKind = previewFor(tab.path)
+  const showPreview = previewKind !== null && settings.preview !== false
 
   useEffect(() => {
     let disposed = false
@@ -106,7 +112,10 @@ export default function EditorPane({ tab, active, centered }: Props) {
       model.detectIndentation(true, 4)
       editor.setModel(model)
       savedVersion.current = model.getAlternativeVersionId()
+      setText(content)
       model.onDidChangeContent(() => {
+        clearTimeout(textTimer.current)
+        textTimer.current = window.setTimeout(() => setText(model.getValue()), 150)
         const dirty = model.getAlternativeVersionId() !== savedVersion.current
         const t = S.project(project)?.tabs.find((x) => x.id === tab.id)
         if (t?.kind === 'file' && (t.dirty !== dirty || (dirty && t.preview))) S.updateTab(tab.id, dirty ? { dirty, preview: false } : { dirty })
@@ -185,6 +194,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
 
     return () => {
       disposed = true
+      clearTimeout(textTimer.current)
       unregister()
       subs.forEach((s) => s.dispose())
       vimRef.current?.dispose()
@@ -250,9 +260,11 @@ export default function EditorPane({ tab, active, centered }: Props) {
   }, [])
 
   const width = Math.ceil(maxColumns * charWidth(fontFamily, fontSize)) + 12
+  const center = centered && !showPreview
   return (
-    <div className={`pane-inner ${centered ? 'centered' : ''}`} style={centered ? { maxWidth: width } : undefined}>
-      <div ref={host} className="editor-host" style={{ visibility: note ? 'hidden' : undefined }} />
+    <div className={`pane-inner ${center ? 'centered' : ''}`} style={center ? { maxWidth: width } : undefined}>
+      <div ref={host} className={`editor-host ${showPreview ? 'with-preview' : ''}`} style={{ visibility: note ? 'hidden' : undefined }} />
+      {showPreview && loaded && !note && <Preview id={tab.id} kind={previewKind} text={text} path={tab.path!} />}
       {note && (
         <div className="editor-note" tabIndex={0} ref={(el) => {
             if (el && active && !sidebarFocused()) el.focus()

@@ -197,6 +197,16 @@ export const commands: Command[] = [
       A.openText('Errors', errorLog.map((e) => `[${stamp(e.time)}] ${e.text}`).join('\n') + '\n')
     },
   },
+  {
+    name: 'Preview',
+    desc: 'Show or hide the rendered view beside Markdown and SVG files',
+    aliases: ['TogglePreview', 'MarkdownPreview'],
+    run: () => {
+      const preview = S.get().settings.preview === false
+      updateSettings({ preview })
+      toast(preview ? 'Previews on' : 'Previews off')
+    },
+  },
   { name: 'Explorer', desc: 'Show or hide the Explorer sidebar', keys: 'Mod+E', run: () => A.openExplorer() },
   { name: 'RefreshExplorer', desc: 'Read the folders shown in the Explorer again', aliases: ['ReloadExplorer'], run: () => A.refreshExplorer() },
   { name: 'WordWrap', desc: 'Wrap long lines in editors', keys: 'Alt+Z', aliases: ['wrap', 'ToggleWordWrap'], run: () => A.toggleWordWrap() },
