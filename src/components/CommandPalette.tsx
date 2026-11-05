@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { focusActive } from '../lib/actions'
-import { commands, isComplete, keyLabel, resolve, runLine } from '../lib/commands'
+import { comboOf, commands, hasModifier, isComplete, keyLabel, keysOf, resolve, runLine, setKeys } from '../lib/commands'
+import { toast } from '../lib/dialogs'
+import { setCapturing } from '../lib/keys'
 import { iconPacks } from '../lib/fileIcons'
 import { fuzzy, highlight } from '../lib/fuzzy'
 import { updateSettings } from '../lib/settings'
@@ -8,7 +10,7 @@ import * as S from '../lib/store'
 import { themes } from '../lib/themes'
 import FileIcon from './FileIcon'
 
-type Mode = 'commands' | 'themes' | 'icons'
+type Mode = 'commands' | 'themes' | 'icons' | 'keys'
 const samples = ['src/', 'index.ts', 'App.tsx', 'package.json', 'README.md', 'main.rs', 'app.py', 'style.css', 'index.html', 'logo.png', 'Dockerfile', '.gitignore']
 
 function IconSamples() {
@@ -49,12 +51,25 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
   const list = useRef<HTMLDivElement>(null)
   const savedTheme = S.useStore((s) => s.settings.theme)
   const savedPack = S.useStore((s) => s.settings.iconPack ?? 'material')
+  const changedKeys = S.useStore((s) => s.settings.keys)
+  const [capture, setCapture] = useState<string | null>(null)
+
+  useEffect(() => {
+    setCapturing(capture !== null)
+    return () => setCapturing(false)
+  }, [capture])
 
   useEffect(() => {
     input.current?.focus()
   }, [mode])
 
   useEffect(() => {
+    setCapture(null)
+    if (mode === 'keys') {
+      setText('')
+      setCursor(0)
+      setMoved(false)
+    }
     if (mode === 'themes' || mode === 'icons') {
       setText('')
       setCursor(
@@ -71,7 +86,9 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
         ? themes.map((t) => ({ name: t.name, desc: t.name === savedTheme ? 'current' : '' }))
         : mode === 'icons'
           ? iconPacks.map((p) => ({ name: p.name, desc: p.id === savedPack ? `${p.desc}, current` : p.desc }))
-          : commands.map((c) => ({ name: c.name, desc: c.desc, keys: c.keys }))
+          : mode === 'keys'
+            ? commands.map((c) => ({ name: c.name, desc: changedKeys?.[c.name] !== undefined ? `${c.desc} (changed)` : c.desc, keys: keysOf(c) }))
+            : commands.filter((c) => !c.hidden).map((c) => ({ name: c.name, desc: c.desc, keys: keysOf(c) }))
     if (!word) return source.map((s) => ({ ...s, positions: [] }))
     const resolved = mode === 'commands' ? resolve(text)?.command.name : undefined
     const scored: { item: Item; score: number }[] = []
@@ -82,7 +99,7 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
     }
     scored.sort((a, b) => b.score - a.score)
     return scored.map((x) => x.item)
-  }, [text, mode, savedTheme, savedPack])
+  }, [text, mode, savedTheme, savedPack, changedKeys])
 
   const index = Math.min(cursor, Math.max(0, items.length - 1))
   const highlighted = items[index]
@@ -103,6 +120,11 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
 
   const run = (clicked?: number) => {
     const item = clicked === undefined ? highlighted : items[clicked]
+    if (mode === 'keys') {
+      if (item) setCapture(item.name)
+      input.current?.focus()
+      return
+    }
     if (mode === 'themes' || mode === 'icons') {
       const pack = iconPacks.find((p) => p.name === item?.name)?.id
       if (item && mode === 'themes') updateSettings({ theme: item.name })
@@ -122,7 +144,31 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
     setMoved(true)
   }
 
+  const pickKeys = (e: React.KeyboardEvent, name: string) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const combo = comboOf(e)
+    if (!combo) return
+    if (combo === 'Esc') setCapture(null)
+    else if (combo === 'Backspace' || combo === 'Delete') {
+      setKeys(name, '')
+      setCapture(null)
+    } else if (combo === 'Enter') {
+      setKeys(name, null)
+      setCapture(null)
+    } else if (!hasModifier(combo)) toast(`Use ${keyLabel('Mod')}, ${keyLabel('Ctrl')} or ${keyLabel('Alt')} with a key`, 'error')
+    else {
+      const taken = setKeys(name, combo)
+      setCapture(null)
+      toast(`${name}: ${keyLabel(combo)}${taken.length ? ` (taken off ${taken.join(', ')})` : ''}`)
+    }
+  }
+
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (capture) {
+      pickKeys(e, capture)
+      return
+    }
     const ctrl = e.ctrlKey && !e.metaKey
     if (e.key === 'Escape') close()
     else if (e.key === 'Enter') run()
@@ -130,6 +176,7 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
     else if (e.key === 'ArrowUp' || (ctrl && (e.key === 'p' || e.key === 'k'))) move(-1)
     else if (e.key === 'PageDown') move(10)
     else if (e.key === 'PageUp') move(-10)
+    else if ((e.key === 'Backspace' || e.key === 'Delete') && mode === 'keys' && !text && highlighted) setKeys(highlighted.name, null)
     else if (e.key === 'Tab') {
       if (mode === 'commands' && highlighted) {
         setText(highlighted.name + ' ')
@@ -145,12 +192,20 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
     <>
       <div className="floating-backdrop" onMouseDown={close} />
       <div className="floating" style={{ top: '8%', left: '50%', transform: 'translateX(-50%)', width: 'min(760px, 86vw)', height: 'max(min(60vh, 100vh - 16%), 300px)' }}>
-        <div className="floating-title"> {mode === 'themes' ? 'Themes' : mode === 'icons' ? 'Icon Packs' : 'Commands'}</div>
+        <div className="floating-title"> {mode === 'themes' ? 'Themes' : mode === 'icons' ? 'Icon Packs' : mode === 'keys' ? 'Keyboard Shortcuts' : 'Commands'}</div>
         <div className="prompt">
           <span className="caret">{'>'}</span>
           <input
             ref={input}
-            value={text}
+            value={capture ? '' : text}
+            readOnly={capture !== null}
+            placeholder={
+              capture
+                ? `Press the new shortcut for ${capture}  ·  Enter default (${keyLabel(commands.find((c) => c.name === capture)?.keys ?? '') || 'none'})  ·  Backspace none  ·  Esc cancel`
+                : mode === 'keys'
+                  ? 'Enter changes the shortcut  ·  Backspace puts it back to the default'
+                  : undefined
+            }
             spellCheck={false}
             autoComplete="off"
             onChange={(e) => {
@@ -161,14 +216,14 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
             onKeyDown={onKeyDown}
           />
           <span className="count">
-            {items.length} / {mode === 'themes' ? themes.length : mode === 'icons' ? iconPacks.length : commands.length}
+            {items.length} / {mode === 'themes' ? themes.length : mode === 'icons' ? iconPacks.length : mode === 'keys' ? commands.length : commands.filter((c) => !c.hidden).length}
           </span>
         </div>
         <div className="results" ref={list}>
           {items.map((it, i) => (
             <div
               key={it.name}
-              className={`row ${i === index ? 'selected' : ''}`}
+              className={`row ${i === index ? 'selected' : ''} ${capture === it.name ? 'capturing' : ''}`}
               onMouseMove={() => {
                 if (i !== index) {
                   setCursor(i)
@@ -182,7 +237,7 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
               }}
               onClick={() => run(i)}
             >
-              {it.keys && <span className="key">{keyLabel(it.keys)}</span>}
+              {(it.keys || mode === 'keys') && <span className="key">{capture === it.name ? '…' : keyLabel(it.keys ?? '') || (mode === 'keys' ? '—' : '')}</span>}
               <Highlighted text={it.name} positions={it.positions} />
               {it.desc && <span className="desc">{'  '}{it.desc}</span>}
               {mode === 'icons' && i === index && <IconSamples />}

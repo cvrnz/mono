@@ -31,6 +31,8 @@ export type Settings = {
   runConfigs?: Record<string, RunConfig[]>
   wordWrap?: boolean
   gitLog?: boolean
+  /** Shortcuts changed from their defaults, by command name ('' for none). */
+  keys?: Record<string, string>
   session?: SavedSession
 }
 
@@ -150,7 +152,7 @@ export type State = {
   conn: Connection
   tabs: Tab[]
   active: string | null
-  palette: null | { mode: 'commands' | 'themes' | 'icons'; text?: string }
+  palette: null | { mode: 'commands' | 'themes' | 'icons' | 'keys'; text?: string }
   status: Record<string, PaneStatus>
   previewTheme: string | null
   previewIcons: string | null

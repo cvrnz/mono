@@ -1744,3 +1744,6 @@ button:disabled,
   height: 14px;
   margin-right: 2px;
 }
+.row.capturing .key {
+  color: var(--fg);
+}

@@ -1,36 +1,13 @@
 import * as A from './actions'
+import { comboOf, commandForKeys, hasModifier } from './commands'
 import { isDialogOpen } from './dialogs'
 import { pane } from './panes'
 import * as S from './store'
 
-type Binding = { code: string; shift?: boolean; run: () => void; project?: boolean }
-
-const bindings: Binding[] = [
-  { code: 'KeyW', run: () => A.closeFocused() },
-  { code: 'KeyS', run: () => A.save() },
-  { code: 'KeyN', run: () => A.newTab() },
-  { code: 'KeyP', run: () => openPalette() },
-  { code: 'KeyF', run: () => A.findInPane() },
-  { code: 'KeyF', shift: true, run: () => A.toggleSearch() },
-  { code: 'KeyR', shift: true, run: () => A.toggleRun() },
-  { code: 'KeyG', run: () => A.openScm() },
-  { code: 'KeyE', run: () => A.openExplorer() },
-  { code: 'KeyB', run: () => A.toggleSidebar() },
-  { code: 'KeyT', run: () => A.openTerminal() },
-  { code: 'KeyD', run: () => A.openSql() },
-  { code: 'Backslash', run: () => A.splitTerminal('below') },
-  { code: 'Backslash', shift: true, run: () => A.splitTerminal('right') },
-  { code: 'KeyH', run: () => A.cycleTab(-1) },
-  { code: 'KeyL', run: () => A.cycleTab(1) },
-  { code: 'KeyJ', run: () => A.cyclePane(1) },
-  { code: 'KeyK', run: () => A.cyclePane(-1) },
-  ...Array.from({ length: 9 }, (_, i): Binding => ({ code: `Digit${i + 1}`, run: () => A.switchToProject(i), project: true })),
-]
-
-function openPalette() {
-  const s = S.get()
-  S.set({ palette: s.palette ? null : { mode: 'commands' }, previewTheme: null, previewIcons: null })
-  if (s.palette) A.focusActive()
+let capturing = false
+/** While a new shortcut is being picked, key presses go to the picker instead of running commands. */
+export function setCapturing(on: boolean) {
+  capturing = on
 }
 
 function inTerminal(target: EventTarget | null) {
@@ -40,17 +17,9 @@ function inTerminal(target: EventTarget | null) {
 }
 
 function onKeyDown(e: KeyboardEvent) {
-  if (isDialogOpen()) return
-  if (e.altKey && e.code === 'KeyZ' && !e.metaKey && !e.ctrlKey && !e.shiftKey && S.isConnected(S.get().conn)) {
-    e.preventDefault()
-    e.stopPropagation()
-    A.toggleWordWrap()
-    return
-  }
-  if (e.altKey) return
-  if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-    const s = S.get()
-    if (s.palette) {
+  if (isDialogOpen() || capturing) return
+  if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) {
+    if (S.get().palette) {
       e.preventDefault()
       e.stopPropagation()
       S.set({ palette: null, previewTheme: null, previewIcons: null })
@@ -58,19 +27,19 @@ function onKeyDown(e: KeyboardEvent) {
     }
     return
   }
-  const mac = S.isMac()
-  const mod = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
-  if (!mod) return
+  const combo = comboOf(e)
+  if (!combo || !hasModifier(combo)) return
   const connected = S.isConnected(S.get().conn)
   const switching = S.get().projects.length > 1
   if (!connected && !switching) return
 
-  let b = bindings.find((x) => x.code === e.code && Boolean(x.shift) === e.shiftKey)
-  if (!b && !mac && e.shiftKey && !inTerminal(e.target)) b = bindings.find((x) => x.code === e.code && !x.shift)
-  if (!b || (!connected && !b.project)) return
+  let c = commandForKeys(combo)
+  // Ctrl+Shift+key works like Ctrl+key outside terminals, where Ctrl+key belongs to the shell.
+  if (!c && !S.isMac() && e.shiftKey && !inTerminal(e.target)) c = commandForKeys(combo.replace('+Shift', ''))
+  if (!c || (!connected && !c.project)) return
   e.preventDefault()
   e.stopPropagation()
-  b.run()
+  c.run('')
 }
 
 export function installKeys(): () => void {

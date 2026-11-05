@@ -2,7 +2,7 @@ import { Button } from '@heroui/react'
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import * as A from '../lib/actions'
 import { disconnect, newProject, reconnect } from '../lib/connection'
-import { keyLabel } from '../lib/commands'
+import { shortcut } from '../lib/commands'
 import { basename } from '../lib/paths'
 import * as S from '../lib/store'
 import CommandPalette from './CommandPalette'
@@ -77,7 +77,7 @@ function ProjectBar() {
           <div
             key={p.id}
             className={`project ${noDrag} ${p.id === current ? 'active' : ''} ${p.conn.state}`}
-            title={`${projectDetails(p)}${i < 9 ? `\n${keyLabel(String(i + 1))}` : ''}`}
+            title={`${projectDetails(p)}${i < 9 && shortcut(`Project${i + 1}`) ? `\n${shortcut(`Project${i + 1}`)}` : ''}`}
             onMouseDown={(e) => {
               if (e.button === 1) {
                 e.preventDefault()

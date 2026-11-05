@@ -632,7 +632,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
       ? [`moving ${basename(moving)}`, '↑/↓ pick a folder', 'l/h expand/collapse', 'Enter move here', 'Esc cancel']
       : picked.size > 1
         ? [`${items(picked.size)} picked`, 'Shift+↑/↓ extend', 'x/c/p cut/copy/paste', 'd delete', 'Enter open', 'Esc clear']
-        : ['j/k move', 'Enter open', 'l peek', 'a/A new file/folder', 'r rename', 'm move', 'x/c/p cut/copy/paste', `${keyLabel('Z')} undo`, 'd delete', 'y copy path', 'R refresh'],
+        : ['j/k move', 'Enter open', 'l peek', 'a/A new file/folder', 'r rename', 'm move', 'x/c/p cut/copy/paste', `${keyLabel('Mod+Z')} undo`, 'd delete', 'y copy path', 'R refresh'],
   )
 
   return (

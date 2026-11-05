@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { newFileHere } from '../lib/actions'
-import { keyLabel } from '../lib/commands'
+import { shortcut } from '../lib/commands'
 import { register } from '../lib/panes'
 import { currentTheme } from '../lib/settings'
 import * as S from '../lib/store'
@@ -33,24 +33,25 @@ export default function Welcome({ id, active }: { id: string; active: boolean })
   const fontSize = S.useStore((s) => s.settings.fontSize)
   const themeName = S.useStore((s) => s.previewTheme ?? s.settings.theme)
   const platform = S.useStore((s) => s.platform)
+  const keys = S.useStore((s) => s.settings.keys)
 
   const items = useMemo(
     () => [
-      ['Explorer', keyLabel('E')],
-      ['Find in this file', keyLabel('F')],
-      ['Search files and text', keyLabel('Shift+F')],
-      ['Terminal', keyLabel('T')],
-      ['SQL', keyLabel('D')],
-      ['Split terminal', keyLabel('\\')],
-      ['New tab', keyLabel('N')],
-      ['Switch tabs', `${keyLabel('H')}  ${keyLabel('L')}`],
-      ['Switch projects', `${keyLabel('1')}  ${keyLabel('2')}  …`],
-      ['Git', keyLabel('G')],
-      ['Run', keyLabel('Shift+R')],
-      ['Close', keyLabel('W')],
-      ['Command palette', keyLabel('P')],
-    ],
-    [platform],
+      ['Explorer', shortcut('Explorer')],
+      ['Find in this file', shortcut('Find')],
+      ['Search files and text', shortcut('Search')],
+      ['Terminal', shortcut('Terminal')],
+      ['SQL', shortcut('Sql')],
+      ['Split terminal', shortcut('Split')],
+      ['New tab', shortcut('New')],
+      ['Switch tabs', `${shortcut('PreviousTab')}  ${shortcut('NextTab')}`],
+      ['Switch projects', `${shortcut('Project1')}  ${shortcut('Project2')}  …`],
+      ['Git', shortcut('Git')],
+      ['Run', shortcut('Run')],
+      ['Close', shortcut('Close')],
+      ['Command palette', shortcut('Palette')],
+    ].filter(([, k]) => k.trim()),
+    [platform, keys],
   )
 
   const below = 6 + items.length * 2 - 1 + 5

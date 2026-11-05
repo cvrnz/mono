@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { keyLabel } from '../lib/commands'
+import { shortcut } from '../lib/commands'
 import * as S from '../lib/store'
 
 export function useHints(id: string, items: string[]) {
@@ -16,7 +16,7 @@ export default function Hints({ items }: { items: string[] }) {
           <span key={item}>{item}</span>
         ))}
       </span>
-      <span className="hints-nav">{keyLabel('J')}/K next/previous pane</span>
+      <span className="hints-nav">{shortcut('NextPane')}/{shortcut('PreviousPane')} next/previous pane</span>
     </div>
   )
 }

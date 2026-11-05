@@ -350,6 +350,12 @@ export function dirtyCount(everywhere = false): number {
   return tabs.filter((t) => t.kind === 'file' && t.dirty).length
 }
 
+export function togglePalette() {
+  const s = S.get()
+  S.set({ palette: s.palette ? null : { mode: 'commands' }, previewTheme: null, previewIcons: null })
+  if (s.palette) focusActive()
+}
+
 export function switchToProject(index: number) {
   const p = S.get().projects[index]
   if (!p) return
