@@ -241,12 +241,15 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
 
   const rename = async (n: Node = node) => {
     if (n.path === root) return
-    const rel = pretty(n.path, root, '')
-    const start = rel.lastIndexOf('/') + 1
-    const dot = n.dir ? -1 : rel.lastIndexOf('.')
-    const value = await prompt('Rename', rel, 'A new name, or a new path to move it', [start, dot > start ? dot : rel.length])
-    if (!value?.trim() || value.trim() === rel) return
-    await relocate(n.path, join(root, value.trim()))
+    const name = n.name
+    const dot = n.dir ? -1 : name.lastIndexOf('.')
+    const value = (await prompt(`Rename ${name}`, name, undefined, [0, dot > 0 ? dot : name.length]))?.trim()
+    if (!value || value === name) return
+    if (value.includes('/') || value === '.' || value === '..') {
+      toast(`A name can't contain / (use m or drag to move ${name})`, 'error')
+      return
+    }
+    await relocate(n.path, join(dirname(n.path), value))
   }
 
   const remove = async (n: Node = node) => {
