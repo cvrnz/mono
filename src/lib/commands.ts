@@ -308,6 +308,8 @@ export const commands: Command[] = [
     },
   },
   { name: 'Palette', desc: 'Open or close the command palette', keys: 'Mod+P', hidden: true, run: () => A.togglePalette() },
+  { name: 'NextProject', desc: 'Switch to the next project', keys: 'Mod+`', aliases: ['NextEnvironment'], project: true, run: () => A.cycleProject(1) },
+  { name: 'PreviousProject', desc: 'Switch to the previous project', keys: 'Mod+Shift+`', aliases: ['PreviousEnvironment'], project: true, run: () => A.cycleProject(-1) },
   ...Array.from({ length: 9 }, (_, i): Command => ({
     name: `Project${i + 1}`,
     desc: `Switch to project ${i + 1}`,

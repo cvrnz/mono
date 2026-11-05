@@ -45,7 +45,7 @@ export default function Welcome({ id, active }: { id: string; active: boolean })
       ['Split terminal', shortcut('Split')],
       ['New tab', shortcut('New')],
       ['Switch tabs', `${shortcut('PreviousTab')}  ${shortcut('NextTab')}`],
-      ['Switch projects', `${shortcut('Project1')}  ${shortcut('Project2')}  …`],
+      ['Switch projects', `${shortcut('NextProject')}  ${shortcut('Project1')}  ${shortcut('Project2')}  …`],
       ['Git', shortcut('Git')],
       ['Run', shortcut('Run')],
       ['Close', shortcut('Close')],
