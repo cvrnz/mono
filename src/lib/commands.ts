@@ -1,7 +1,7 @@
 import * as A from './actions'
 import { errorText } from './bridge'
 import { changeDirectory, disconnect, newProject, reconnect } from './connection'
-import { prompt, toast } from './dialogs'
+import { errorLog, prompt, toast } from './dialogs'
 import { pane } from './panes'
 import { addThemeRepo, loadUserThemes, removeThemeRepo, updateSettings, updateThemeRepos } from './settings'
 import * as S from './store'
@@ -182,6 +182,20 @@ export const commands: Command[] = [
     name: 'GitDepth',
     desc: 'How many folders deep the git tab looks for repos (default 4)',
     run: setNumber('Git depth', 'gitDepth', 0, 12),
+  },
+  {
+    name: 'Errors',
+    desc: 'Show every error from this session in a new tab',
+    aliases: ['ErrorLog', 'ErrorHistory'],
+    run: () => {
+      if (!errorLog.length) {
+        toast('No errors so far')
+        return
+      }
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const stamp = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+      A.openText('Errors', errorLog.map((e) => `[${stamp(e.time)}] ${e.text}`).join('\n') + '\n')
+    },
   },
   { name: 'Explorer', desc: 'Show or hide the Explorer sidebar', keys: 'Mod+E', run: () => A.openExplorer() },
   { name: 'RefreshExplorer', desc: 'Read the folders shown in the Explorer again', aliases: ['ReloadExplorer'], run: () => A.refreshExplorer() },

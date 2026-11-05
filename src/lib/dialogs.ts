@@ -83,11 +83,18 @@ export function useToasts(): Toast[] {
   )
 }
 
+/** Every error shown this session, oldest first. */
+export const errorLog: { time: Date; text: string }[] = []
+
 export function toast(text: string, tone: Toast['tone'] = 'info') {
+  if (tone === 'error') {
+    errorLog.push({ time: new Date(), text })
+    if (errorLog.length > 1000) errorLog.shift()
+  }
   const t = { id: ++toastId, text, tone }
   toasts = [...toasts, t]
   toastListeners.forEach((l) => l())
-  setTimeout(() => dismissToast(t.id), tone === 'error' ? 8000 : 3000)
+  setTimeout(() => dismissToast(t.id), tone === 'error' ? 5000 : 3000)
 }
 
 export function dismissToast(id: number) {

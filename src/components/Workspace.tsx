@@ -32,7 +32,7 @@ export function tabLabel(tab: S.Tab): string {
     case 'welcome':
       return 'Welcome'
     case 'file':
-      return tab.path ? basename(tab.path) : 'Untitled'
+      return tab.path ? basename(tab.path) : (tab.name ?? 'Untitled')
     case 'diff':
       return diffLabel(tab)
     case 'commit':

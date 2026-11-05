@@ -104,6 +104,11 @@ export function keepTab(id: string) {
   if (tab?.preview) S.updateTab(id, { preview: false })
 }
 
+/** Opens text in a new, unsaved tab. */
+export function openText(name: string, text: string) {
+  insertTab({ id: S.newId(), kind: 'file', path: null, dirty: false, name, text })
+}
+
 export function newTab() {
   insertTab({ id: S.newId(), kind: 'file', path: null, dirty: false })
 }
@@ -255,7 +260,7 @@ export function closePane(tabId: string, paneId: string) {
 
 async function settle(tab: S.Tab): Promise<boolean> {
   if (tab.kind !== 'file' || !tab.dirty) return true
-  const name = tab.path ? basename(tab.path) : 'Untitled'
+  const name = tab.path ? basename(tab.path) : (tab.name ?? 'Untitled')
   const choice = await choose(`Save changes to ${name}?`, "Your changes will be lost if you don't save them.", [
     { label: 'Cancel', value: 'cancel', variant: 'tertiary' },
     { label: "Don't save", value: 'discard', variant: 'secondary' },

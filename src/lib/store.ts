@@ -86,7 +86,17 @@ export type SqlConnection = {
 export type Splits = { dir: 'below' | 'right'; panes: string[] }
 
 type TabBase = { id: string; splits?: Splits; focus?: string; preview?: boolean }
-export type FileTab = TabBase & { kind: 'file'; path: string | null; dirty: boolean; line?: number; col?: number; len?: number }
+export type FileTab = TabBase & {
+  kind: 'file'
+  path: string | null
+  dirty: boolean
+  line?: number
+  col?: number
+  len?: number
+  /** What a new, unsaved file starts with, and its tab's name. */
+  text?: string
+  name?: string
+}
 export type DiffTab = TabBase & { kind: 'diff'; repo: string; change: Change }
 export type CommitTab = TabBase & { kind: 'commit'; repo: string; hash: string; subject: string }
 export type TerminalTab = TabBase & { kind: 'terminal'; cwd: string }

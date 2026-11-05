@@ -78,7 +78,6 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     setPicked(new Set())
     anchor.current = path
   }, [])
-  const [error, setError] = useState('')
   const tree = useRef<HTMLDivElement>(null)
   const [moving, setMoving] = useState<string | null>(null)
   const [dragging, setDragging] = useState<Drag | null>(null)
@@ -94,7 +93,15 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
       setChildren((m) => new Map(m).set(dir, list))
       return list
     } catch (err) {
-      setError(errorText(err))
+      // A folder that was deleted or moved away isn't an error; drop it from the tree.
+      if (/no such file|doesn't exist|not found/i.test(errorText(err))) {
+        setChildren((m) => {
+          const next = new Map(m)
+          for (const k of next.keys()) if (isInside(k, dir)) next.delete(k)
+          return next
+        })
+        setExpanded((s) => (s.has(dir) ? new Set([...s].filter((d) => !isInside(d, dir))) : s))
+      } else toast(errorText(err), 'error')
       return []
     }
   }, [agent])
@@ -691,7 +698,6 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
                   : changed.has(n.path) && <span className={`st-${changed.get(n.path)}`}>  {changed.get(n.path)}</span>}
               </div>
             ))}
-            {error && <div className="empty bad">{error}</div>}
           </div>
           {draggedNode && (
             <div className="drag-ghost" ref={ghost}>

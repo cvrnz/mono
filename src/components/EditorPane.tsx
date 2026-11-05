@@ -132,7 +132,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
           else setNote(errorText(err))
         })
     } else {
-      attach('')
+      attach(tab.text ?? '')
     }
 
     const subs = [
