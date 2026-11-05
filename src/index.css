@@ -539,9 +539,6 @@ button:disabled,
 .explorer-tree.drop-root .row.drop {
   box-shadow: none;
 }
-.explorer-tree .drop-label {
-  color: var(--blue);
-}
 .drag-ghost {
   position: fixed;
   left: 0;

@@ -435,7 +435,6 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
 
   const destination = (n: Node | undefined) => (n ? targetDir(n) : root)
   const moveDest = moving ? destination(node) : (dragging?.over ?? outside?.over ?? null)
-  const dropWhat = moving ? basename(moving) : dragging ? (dragging.paths.length === 1 ? basename(dragging.from) : items(dragging.paths.length)) : items(outside?.count ?? 0)
 
   const dirAt = (x: number, y: number): string | null => {
     const hit = document.elementFromPoint(x, y) as HTMLElement | null
@@ -695,7 +694,6 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
                 <FileIcon n={n} open={expanded.has(n.path)} />
                 <span className={`name ${n.dir ? 'dir' : changed.has(n.path) ? `st-${changed.get(n.path)}` : n.link ? 'link' : ''}`}>{n.name}</span>
                 {n.link && <span className="dim"> →</span>}
-                {moveDest === n.path && <span className="drop-label">{'  ← '}{dropWhat}</span>}
                 {n.dir
                   ? (changedDirs.has(n.path) || changed.has(n.path)) && <span className="st-M" title="Has uncommitted changes"> •</span>
                   : changed.has(n.path) && <span className={`st-${changed.get(n.path)}`}>  {changed.get(n.path)}</span>}
