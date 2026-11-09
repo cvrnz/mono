@@ -288,6 +288,7 @@ export const commands: Command[] = [
   { name: 'Welcome', desc: 'Show the welcome screen', aliases: ['intro'], run: () => A.openWelcome() },
   { name: 'MaxColumns', desc: 'Set the width that files and terminals are centered at', run: setNumber('Max columns', 'maxColumns', 40, 400) },
   { name: 'FontSize', desc: 'Set the font size of files and terminals', run: setNumber('Font size', 'fontSize', 8, 40) },
+  { name: 'Fonts', desc: 'Pick the font of files and terminals, with a preview', aliases: ['Font', 'FontFamily'], run: () => S.set({ palette: { mode: 'fonts' } }) },
   {
     name: 'Reconnect',
     desc: 'Reconnect to the container',

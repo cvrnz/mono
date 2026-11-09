@@ -1,5 +1,6 @@
 import { errorText, invoke } from './bridge'
 import { toast } from './dialogs'
+import { oldDefaultFont } from './fonts'
 import { monaco } from './monaco'
 import * as S from './store'
 import { applyChrome, monacoTheme, type Palette, parseTheme, setUserThemes, themeNamed } from './themes'
@@ -11,6 +12,7 @@ export async function loadSettings() {
     saved = JSON.parse(raw)
   } catch {
   }
+  if (saved.fontFamily === oldDefaultFont) delete saved.fontFamily
   S.set({ platform, settings: { ...S.defaultSettings, ...saved } })
   document.documentElement.dataset.platform = platform
   await loadUserThemes()

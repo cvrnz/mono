@@ -1,5 +1,6 @@
 import { createContext, useContext, useSyncExternalStore } from 'react'
 import type { Change, Hello } from './agent'
+import { defaultFont } from './fonts'
 
 export type Target = { kind: 'local'; folder: string } | { kind: 'docker'; container: string; folder: string }
 
@@ -62,7 +63,7 @@ export const defaultSettings: Settings = {
   maxColumns: 120,
   gitDepth: 4,
   fontSize: 16,
-  fontFamily: '"JetBrainsMono Nerd Font", "JetBrains Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace',
+  fontFamily: defaultFont,
   recents: [],
 }
 
@@ -164,7 +165,7 @@ export type State = {
   conn: Connection
   tabs: Tab[]
   active: string | null
-  palette: null | { mode: 'commands' | 'themes' | 'icons' | 'keys'; text?: string }
+  palette: null | { mode: 'commands' | 'themes' | 'icons' | 'fonts' | 'keys'; text?: string }
   status: Record<string, PaneStatus>
   previewTheme: string | null
   previewIcons: string | null

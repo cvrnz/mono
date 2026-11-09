@@ -2,6 +2,14 @@
 @import '@heroui/styles';
 @import '@xterm/xterm/css/xterm.css';
 
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/GeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --mono: ui-monospace, Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
