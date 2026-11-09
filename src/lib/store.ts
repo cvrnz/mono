@@ -21,6 +21,8 @@ export type Settings = {
   gitDepth: number
   fontSize: number
   fontFamily: string
+  /** How much the whole window is zoomed, 1 for none. */
+  zoom?: number
   dockerPath?: string
   recents: Target[]
   sqlConnections?: SqlConnection[]

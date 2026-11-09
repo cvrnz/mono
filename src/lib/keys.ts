@@ -31,12 +31,13 @@ function onKeyDown(e: KeyboardEvent) {
   if (!combo || !hasModifier(combo)) return
   const connected = S.isConnected(S.get().conn)
   const switching = S.get().projects.length > 1
-  if (!connected && !switching) return
 
   let c = commandForKeys(combo)
   // Ctrl+Shift+key works like Ctrl+key outside terminals, where Ctrl+key belongs to the shell.
   if (!c && !S.isMac() && e.shiftKey && !inTerminal(e.target)) c = commandForKeys(combo.replace('+Shift', ''))
-  if (!c || (!connected && !c.project)) return
+  // ⌘+ is ⌘⇧= on most keyboards.
+  if (!c && e.key === '+') c = commandForKeys(combo.replace('+Shift', ''))
+  if (!c || (!connected && !c.always && (!switching || !c.project))) return
   e.preventDefault()
   e.stopPropagation()
   c.run('')

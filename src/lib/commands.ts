@@ -3,7 +3,7 @@ import { errorText } from './bridge'
 import { changeDirectory, disconnect, newProject, reconnect } from './connection'
 import { errorLog, prompt, toast } from './dialogs'
 import { pane } from './panes'
-import { addThemeRepo, loadUserThemes, removeThemeRepo, updateSettings, updateThemeRepos } from './settings'
+import { addThemeRepo, loadUserThemes, removeThemeRepo, updateSettings, updateThemeRepos, zoom } from './settings'
 import * as S from './store'
 
 export type Command = {
@@ -16,6 +16,8 @@ export type Command = {
   hidden?: boolean
   /** Works before this project is connected. */
   project?: boolean
+  /** Works on the connect screen too. */
+  always?: boolean
   run: (args: string) => void | Promise<void>
 }
 
@@ -289,6 +291,9 @@ export const commands: Command[] = [
   { name: 'MaxColumns', desc: 'Set the width that files and terminals are centered at', run: setNumber('Max columns', 'maxColumns', 40, 400) },
   { name: 'FontSize', desc: 'Set the font size of files and terminals', run: setNumber('Font size', 'fontSize', 8, 40) },
   { name: 'Fonts', desc: 'Pick the font of files and terminals, with a preview', aliases: ['Font', 'FontFamily'], run: () => S.set({ palette: { mode: 'fonts' } }) },
+  { name: 'ZoomIn', desc: 'Make everything in the window bigger', keys: 'Mod+=', always: true, run: () => zoom(1) },
+  { name: 'ZoomOut', desc: 'Make everything in the window smaller', keys: 'Mod+-', always: true, run: () => zoom(-1) },
+  { name: 'ResetZoom', desc: 'Put the window back to its normal size', keys: 'Mod+0', aliases: ['ActualSize'], always: true, run: () => zoom(0) },
   {
     name: 'Reconnect',
     desc: 'Reconnect to the container',

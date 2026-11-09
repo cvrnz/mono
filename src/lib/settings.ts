@@ -1,3 +1,4 @@
+import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { errorText, invoke } from './bridge'
 import { toast } from './dialogs'
 import { oldDefaultFont } from './fonts'
@@ -14,6 +15,7 @@ export async function loadSettings() {
   }
   if (saved.fontFamily === oldDefaultFont) delete saved.fontFamily
   S.set({ platform, settings: { ...S.defaultSettings, ...saved } })
+  applyZoom()
   document.documentElement.dataset.platform = platform
   await loadUserThemes()
   void installThemes()
@@ -68,6 +70,24 @@ export function updateSettings(patch: Partial<S.Settings>): Promise<void> {
     () => {},
     () => {},
   )
+}
+
+const zoomSteps = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3]
+
+function applyZoom() {
+  getCurrentWebview()
+    .setZoom(S.get().settings.zoom ?? 1)
+    .catch(() => {})
+}
+
+/** Makes everything in the window bigger (1) or smaller (-1) a step at a time, like a browser, or back to normal (0). */
+export function zoom(step: 1 | -1 | 0) {
+  const now = S.get().settings.zoom ?? 1
+  const next = step === 0 ? 1 : step > 0 ? (zoomSteps.find((z) => z > now + 0.001) ?? now) : (zoomSteps.findLast((z) => z < now - 0.001) ?? now)
+  if (next === now && step !== 0) return
+  void updateSettings({ zoom: next === 1 ? undefined : next })
+  applyZoom()
+  toast(`Zoom ${Math.round(next * 100)}%`)
 }
 
 export function currentTheme() {
