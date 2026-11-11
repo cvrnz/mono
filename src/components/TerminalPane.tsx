@@ -37,6 +37,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
       fontFamily: settings.fontFamily,
       fontSize: settings.fontSize,
       theme: xtermTheme(currentTheme()),
+      allowTransparency: true,
       cursorBlink: true,
       scrollback: 10000,
       macOptionIsMeta: true,
@@ -188,7 +189,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
     observer.observe(host.current!)
     const unsubTheme = S.subscribe(() => {
       const theme = xtermTheme(currentTheme())
-      if (term.options.theme?.background !== theme.background || term.options.theme?.foreground !== theme.foreground) term.options.theme = theme
+      if (term.options.theme?.cursorAccent !== theme.cursorAccent || term.options.theme?.foreground !== theme.foreground) term.options.theme = theme
     })
 
     const unregister = register(id, {

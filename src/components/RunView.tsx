@@ -28,6 +28,7 @@ export default function RunView({ id }: { id: string }) {
       fontFamily: settings.fontFamily,
       fontSize: settings.fontSize,
       theme: xtermTheme(currentTheme()),
+      allowTransparency: true,
       disableStdin: true,
       cursorBlink: false,
       cursorInactiveStyle: 'none',

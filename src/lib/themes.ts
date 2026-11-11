@@ -230,7 +230,8 @@ export function monacoTheme(p: Palette): Monaco.editor.IStandaloneThemeData {
 
 export function xtermTheme(p: Palette): ITheme {
   return {
-    background: p.bg,
+    // The app's background shows through, since a WebGL canvas doesn't draw p.bg in quite the same shade.
+    background: '#00000000',
     foreground: p.fg,
     cursor: p.fg,
     cursorAccent: p.bg,
