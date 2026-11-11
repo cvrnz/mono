@@ -92,11 +92,9 @@ button:disabled,
 .tab.active {
   color: var(--fg);
   background: var(--raised);
-  font-weight: bold;
 }
 .tab .dot {
   color: var(--dim);
-  font-weight: normal;
 }
 .tab-divider {
   flex: none;
@@ -169,16 +167,13 @@ button:disabled,
 }
 .project .num {
   color: var(--dim);
-  font-weight: normal;
 }
 .project .dot {
   color: var(--dim);
-  font-weight: normal;
 }
 .project.active {
   color: var(--fg);
   background: var(--raised);
-  font-weight: bold;
 }
 .project.connecting,
 .project.idle {
