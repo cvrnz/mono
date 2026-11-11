@@ -85,7 +85,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
     let where = restored?.cwd ?? cwd
     if (restored?.text) {
       doFit()
-      term.write(restored.text + '\r\n\x1b[2m[Restored from the last session]\x1b[0m\r\n')
+      term.write(restored.text + '\x1b[0m\r\n\x1b[2m[Restored from the last session]\x1b[0m\r\n')
     }
     const kept = keepOutput(id, () => serialize.serialize({ scrollback: 1000, excludeModes: true, excludeAltBuffer: true }))
 
