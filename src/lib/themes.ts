@@ -192,7 +192,10 @@ export function monacoTheme(p: Palette): Monaco.editor.IStandaloneThemeData {
       { token: 'markup.heading', foreground: strip(p.red), fontStyle: 'bold' },
     ],
     colors: {
-      'editor.background': p.bg,
+      // The page's background shows through, as with terminals, so files never look a shade off from the rest.
+      'editor.background': '#00000000',
+      'editorStickyScroll.background': p.bg,
+      'editorCursor.background': p.bg,
       'editor.foreground': p.fg,
       'editorLineNumber.foreground': p.dim,
       'editorLineNumber.activeForeground': p.fg,
