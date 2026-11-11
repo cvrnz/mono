@@ -180,7 +180,8 @@ export type State = {
   /** The run whose output covers the panes, if any. */
   runView: string | null
   session: number
-  draggingTab: string | null
+  /** The tab or project being dragged along its bar. */
+  dragging: string | null
   hints: Record<string, string[]>
 }
 
@@ -202,7 +203,7 @@ let state: State = {
   runs: [],
   runView: null,
   session: 0,
-  draggingTab: null,
+  dragging: null,
   hints: {},
 }
 

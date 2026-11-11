@@ -71,6 +71,7 @@ function projectDetails(p: S.Project): string {
 function ProjectBar() {
   const projects = S.useStore((s) => s.projects)
   const current = S.useStore((s) => s.project)
+  const dragging = S.useStore((s) => s.dragging)
   return (
     <div className="projectbar">
       {projects.map((p, i) => {
@@ -78,7 +79,8 @@ function ProjectBar() {
         return (
           <div
             key={p.id}
-            className={`project ${noDrag} ${p.id === current ? 'active' : ''} ${p.conn.state}`}
+            data-id={p.id}
+            className={`project ${noDrag} ${p.id === current ? 'active' : ''} ${p.conn.state} ${p.id === dragging ? 'dragging' : ''}`}
             title={`${projectDetails(p)}${i < 9 && shortcut(`Project${i + 1}`) ? `\n${shortcut(`Project${i + 1}`)}` : ''}`}
             onMouseDown={(e) => {
               if (e.button === 1) {
@@ -88,6 +90,7 @@ function ProjectBar() {
               } else if (e.button === 0) {
                 e.preventDefault()
                 A.switchToProject(i)
+                dragInBar(e, p.id, '.project[data-id]', moveProject)
               }
             }}
           >
@@ -112,7 +115,28 @@ function ProjectBar() {
   )
 }
 
-function dragTab(e: React.MouseEvent, id: string) {
+function moveTab(id: string, target: string) {
+  S.set((s) => {
+    const to = s.tabs.findIndex((t) => t.id === target)
+    if (to < 0 || S.isFixed(s.tabs[to])) return {}
+    const tabs = s.tabs.filter((t) => t.id !== id)
+    tabs.splice(to, 0, s.tabs.find((t) => t.id === id)!)
+    return { tabs }
+  })
+}
+
+function moveProject(id: string, target: string) {
+  S.set((s) => {
+    const to = s.projects.findIndex((p) => p.id === target)
+    if (to < 0) return {}
+    const projects = s.projects.filter((p) => p.id !== id)
+    projects.splice(to, 0, s.projects.find((p) => p.id === id)!)
+    return { projects }
+  })
+}
+
+/** Lets a tab or project be dragged along its bar, moving it to wherever it's dragged over. */
+function dragInBar(e: React.MouseEvent, id: string, items: string, move: (id: string, target: string) => void) {
   const bar = (e.currentTarget as HTMLElement).parentElement
   if (!bar) return
   const x = e.clientX
@@ -122,27 +146,20 @@ function dragTab(e: React.MouseEvent, id: string) {
       if (Math.abs(ev.clientX - x) < 5) return
       started = true
       document.body.classList.add('dragging-tab')
-      S.set({ draggingTab: id })
+      S.set({ dragging: id })
     }
-    const over = [...bar.querySelectorAll<HTMLElement>('.tab[data-id]')].find((el) => {
+    const over = [...bar.querySelectorAll<HTMLElement>(items)].find((el) => {
       const r = el.getBoundingClientRect()
       return ev.clientX >= r.left && ev.clientX < r.right
     })
     const target = over?.dataset.id
-    if (!target || target === id) return
-    S.set((s) => {
-      const to = s.tabs.findIndex((t) => t.id === target)
-      if (to < 0 || S.isFixed(s.tabs[to])) return {}
-      const tabs = s.tabs.filter((t) => t.id !== id)
-      tabs.splice(to, 0, s.tabs.find((t) => t.id === id)!)
-      return { tabs }
-    })
+    if (target && target !== id) move(id, target)
   }
   const onUp = () => {
     window.removeEventListener('mousemove', onMove)
     window.removeEventListener('mouseup', onUp)
     document.body.classList.remove('dragging-tab')
-    if (started) S.set({ draggingTab: null })
+    if (started) S.set({ dragging: null })
   }
   window.addEventListener('mousemove', onMove)
   window.addEventListener('mouseup', onUp)
@@ -158,7 +175,7 @@ function tabTitle(t: S.Tab, icon: boolean): string | undefined {
 
 function TabBar() {
   const tabs = S.useStore((s) => s.tabs)
-  const dragging = S.useStore((s) => s.draggingTab)
+  const dragging = S.useStore((s) => s.dragging)
   const active = S.useStore((s) => s.active)
   const side = S.useStore((s) => S.sidebar(s))
   const icons = S.useStore((s) => Boolean(s.settings.tabIcons))
@@ -184,7 +201,7 @@ function TabBar() {
                   if (fixed) A.clickSidebarTab(t.kind as S.FixedKind)
                   else {
                     A.activate(t.id)
-                    dragTab(e, t.id)
+                    dragInBar(e, t.id, '.tab[data-id]', moveTab)
                   }
                 }
               }}

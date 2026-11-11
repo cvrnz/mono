@@ -108,7 +108,8 @@ button:disabled,
 .tab.preview {
   font-style: italic;
 }
-.tab.dragging {
+.tab.dragging,
+.project.dragging {
   outline: 1px solid var(--border);
 }
 .dragging-tab,
