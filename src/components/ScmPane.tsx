@@ -5,6 +5,7 @@ import { errorText } from '../lib/bridge'
 import { toast } from '../lib/dialogs'
 import { register } from '../lib/panes'
 import { basename, dirname, isInside, join, pretty } from '../lib/paths'
+import { updateSettings } from '../lib/settings'
 import * as S from '../lib/store'
 import FileIcon from './FileIcon'
 import { useHints } from './Hints'
@@ -62,7 +63,7 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
   const [log, setLog] = useState<Commit[] | null>(null)
   const [view, setView] = useState<View>('repos')
   const showLog = S.useStore((s) => s.settings.gitLog !== false)
-  if (!showLog && view === 'log') setView('changes')
+  const panels = S.useStore((s) => s.settings.gitPanels)
   const [sel, setSel] = useState({ repos: 0, changes: 0, log: 0 })
   const [busy, setBusy] = useState<Busy | null>(null)
   const side = useRef<HTMLDivElement>(null)
@@ -225,6 +226,55 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     }))
   }, [repo, log])
 
+  const closed = (which: View) => (which === 'log' ? !showLog : Boolean(panels?.[which]?.closed))
+  const listed: View[] = repo ? ['repos', 'changes', 'log'] : ['repos', 'changes']
+  const open = listed.filter((w) => !closed(w))
+  if (closed(view) && open.length) setView(open[0])
+
+  const fold = (which: View) => {
+    if (which === 'log') return toggleGitLog()
+    const all = S.get().settings.gitPanels
+    updateSettings({ gitPanels: { ...all, [which]: { ...all?.[which], closed: !closed(which) } } })
+  }
+
+  const setSizes = (sizes: Partial<Record<View, number>> | null, save: boolean) => {
+    const all = S.get().settings.gitPanels
+    const gitPanels = Object.fromEntries(listed.map((w) => [w, { closed: all?.[w]?.closed, size: sizes ? (sizes[w] ?? all?.[w]?.size) : undefined }]))
+    if (save) updateSettings({ gitPanels })
+    else S.set({ settings: { ...S.get().settings, gitPanels } })
+  }
+
+  const resize = (e: React.MouseEvent, above: View, below: View) => {
+    if (e.button !== 0 || !side.current) return
+    e.preventDefault()
+    e.stopPropagation()
+    const height = (w: View) => side.current!.querySelector(`.scm-${w}`)!.getBoundingClientRect().height
+    const heights = Object.fromEntries(open.map((w) => [w, height(w)]))
+    const least = side.current.querySelector('.scm-title')!.getBoundingClientRect().height * 2
+    const both = heights[above] + heights[below]
+    const y = e.clientY
+    let sizes = heights
+    const onMove = (ev: MouseEvent) => {
+      const top = Math.min(both - least, Math.max(least, heights[above] + ev.clientY - y))
+      sizes = { ...heights, [above]: Math.round(top), [below]: Math.round(both - top) }
+      setSizes(sizes, false)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.classList.remove('resizing-rows')
+      setSizes(sizes, true)
+    }
+    document.body.classList.add('resizing-rows')
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // Lists sized before another one was shown give it the average of theirs.
+  const sized = open.map((w) => panels?.[w]?.size).filter((n): n is number => Boolean(n))
+  const average = sized.length ? sized.reduce((a, b) => a + b, 0) / sized.length : 0
+  const sizeStyle = (which: View) => (average && !closed(which) ? { flex: `${panels?.[which]?.size ?? average} 1 0`, maxHeight: 'none' } : undefined)
+
   const selectableIn = (rows: Row[]) => rows.map((r, i) => (r.item ? i : -1)).filter((i) => i >= 0)
   const cursorIn = (rows: Row[], at: number) => {
     const ok = selectableIn(rows)
@@ -300,8 +350,7 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     if (e.metaKey || e.ctrlKey || e.altKey) return
     const key = e.key
     if (key === 'Tab') {
-      const order: View[] = repo && showLog ? ['repos', 'changes', 'log'] : ['repos', 'changes']
-      setView((v) => order[(order.indexOf(v) + (e.shiftKey ? order.length - 1 : 1)) % order.length])
+      if (open.length) setView((v) => open[(open.indexOf(v) + (e.shiftKey ? open.length - 1 : 1)) % open.length])
     } else if (key === 'j' || key === 'ArrowDown') move(1)
     else if (key === 'k' || key === 'ArrowUp') move(-1)
     else if (key === 'g' || key === 'Home') move(-1e9)
@@ -315,78 +364,74 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     e.preventDefault()
   }
 
+  const names: Record<View, string> = { repos: 'Repos', changes: 'Changes', log: 'Log' }
+  const tab = open.length > 1 ? `Tab ${names[open[(open.indexOf(view) + 1) % open.length]]}` : ''
   const hints =
     view === 'repos'
-      ? ['j/k move', 'Enter show its changes', 'Tab Changes', 'R refresh']
+      ? ['j/k move', 'Enter show its changes', tab, 'R refresh']
       : view === 'log'
-        ? ['j/k move', 'Enter show commit', 'l peek', 'Tab Repos', 'L hide log', 'R refresh']
-        : ['j/k move', entry?.sync ? 'Enter sync' : 'Enter diff', 'l peek', 'o open file', `Tab ${showLog && repo ? 'Log' : 'Repos'}`, `L ${showLog ? 'hide' : 'show'} log`, 'R refresh']
-  useHints(id, hints)
+        ? ['j/k move', 'Enter show commit', 'l peek', tab, 'L hide log', 'R refresh']
+        : ['j/k move', entry?.sync ? 'Enter sync' : 'Enter diff', 'l peek', 'o open file', tab, `L ${showLog ? 'hide' : 'show'} log`, 'R refresh']
+  useHints(id, hints.filter(Boolean))
 
   useEffect(() => {
     side.current?.querySelectorAll('.row.selected').forEach((r) => r.scrollIntoView({ block: 'nearest' }))
   }, [cursors.repos, cursors.changes, cursors.log])
 
-  const list = (which: View, title: ReactNode, items: Row[], collapsed = false) => (
-    <div className={`scm-list scm-${which} ${view === which ? 'on' : ''} ${collapsed ? 'collapsed' : ''}`}>
-      <div className="scm-title" onMouseDown={() => setView(which)}>
-        {title}
+  const list = (which: View, title: string, items: Row[], extra?: ReactNode) => {
+    const collapsed = closed(which)
+    const above = collapsed ? undefined : open[open.indexOf(which) - 1]
+    return (
+      <div className={`scm-list scm-${which} ${view === which ? 'on' : ''} ${collapsed ? 'collapsed' : ''}`} style={sizeStyle(which)}>
+        {above && <div className="scm-splitter" title="Drag to resize, double-click for the default sizes" onMouseDown={(e) => resize(e, above, which)} onDoubleClick={() => setSizes(null, true)} />}
+        <div className="scm-title" onMouseDown={() => !collapsed && setView(which)}>
+          <span
+            className="scm-toggle"
+            title={`${collapsed ? 'Show' : 'Hide'} ${names[which].toLowerCase()}${which === 'log' ? ' (L)' : ''}`}
+            onMouseDown={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              fold(which)
+            }}
+          >
+            <svg className={`chev ${collapsed ? '' : 'open'}`} viewBox="0 0 16 16" aria-hidden>
+              <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {title}
+          </span>
+          {extra}
+        </div>
+        {!collapsed && <div className="scm-rows">
+          {items.map((r, i) => {
+            const c = r.item?.change
+            return (
+              <div
+                key={r.key}
+                title={r.title}
+                className={`row ${i === cursors[which] ? 'selected' : ''}`}
+                style={r.indent ? { paddingLeft: `calc(1ch + ${r.indent * 12}px)` } : undefined}
+                onMouseDown={() => {
+                  setView(which)
+                  if (r.item) setSel((s) => ({ ...s, [which]: i }))
+                }}
+                onClick={() => r.item && choose(r.item, { preview: true, focus: false })}
+                onDoubleClick={() => (c || r.item?.commit) && choose(r.item, {})}
+              >
+                {r.node}
+              </div>
+            )
+          })}
+        </div>}
       </div>
-      {!collapsed && <div className="scm-rows">
-        {items.map((r, i) => {
-          const c = r.item?.change
-          return (
-            <div
-              key={r.key}
-              title={r.title}
-              className={`row ${i === cursors[which] ? 'selected' : ''}`}
-              style={r.indent ? { paddingLeft: `calc(1ch + ${r.indent * 12}px)` } : undefined}
-              onMouseDown={() => {
-                setView(which)
-                if (r.item) setSel((s) => ({ ...s, [which]: i }))
-              }}
-              onClick={() => r.item && choose(r.item, { preview: true, focus: false })}
-              onDoubleClick={() => (c || r.item?.commit) && choose(r.item, {})}
-            >
-              {r.node}
-            </div>
-          )
-        })}
-      </div>}
-    </div>
-  )
+    )
+  }
 
   return (
     <div className="scm">
       <div className="scm-side" ref={side} tabIndex={0} onKeyDown={onKeyDown}>
         {list('repos', 'REPOSITORIES', repoRows)}
-        {list(
-          'changes',
-          <>
-            CHANGES{repo && <span className="scm-repo">{'  ' + repo.name}</span>}
-          </>,
-          changeRows,
-        )}
-        {repo &&
-          list(
-            'log',
-            <span
-              className="scm-log-toggle"
-              title={`${showLog ? 'Hide' : 'Show'} the log (L)`}
-              onMouseDown={(e) => {
-                e.stopPropagation()
-                e.preventDefault()
-                toggleGitLog()
-              }}
-            >
-              <svg className={`chev ${showLog ? 'open' : ''}`} viewBox="0 0 16 16" aria-hidden>
-                <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              LOG
-            </span>,
-            logRows,
-            !showLog,
-          )}
+        {list('changes', 'CHANGES', changeRows, repo && <span className="scm-repo">{'  ' + repo.name}</span>)}
+        {repo && list('log', 'LOG', logRows)}
       </div>
     </div>
   )

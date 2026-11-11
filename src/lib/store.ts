@@ -36,6 +36,8 @@ export type Settings = {
   runConfigs?: Record<string, RunConfig[]>
   wordWrap?: boolean
   gitLog?: boolean
+  /** How tall the Git sidebar's lists are (weights, from their heights when last resized) and which are folded; the log folds with gitLog. */
+  gitPanels?: Partial<Record<'repos' | 'changes' | 'log', { size?: number; closed?: boolean }>>
   /** Show Markdown and SVG files rendered beside their text (default on). */
   preview?: boolean
   /** Shortcuts changed from their defaults, by command name ('' for none). */

@@ -487,6 +487,11 @@ button:disabled,
   cursor: col-resize !important;
   user-select: none;
 }
+.resizing-rows,
+.resizing-rows * {
+  cursor: row-resize !important;
+  user-select: none;
+}
 .explorer-tree .row.selected {
   background: var(--raised);
 }
@@ -620,9 +625,19 @@ button:disabled,
   text-decoration: line-through;
 }
 .scm-list {
+  position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: var(--row);
+}
+.scm-splitter {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  z-index: 2;
+  cursor: row-resize;
 }
 .scm-repos {
   flex: none;
@@ -1721,15 +1736,15 @@ button:disabled,
   outline: none !important;
   box-shadow: none !important;
 }
-.scm-log.collapsed {
+.scm-list.collapsed {
   flex: none;
 }
-.scm-log-toggle {
+.scm-toggle {
   display: inline-flex;
   align-items: center;
   margin-left: -4px;
 }
-.scm-log-toggle .chev {
+.scm-toggle .chev {
   width: 14px;
   height: 14px;
   margin-right: 2px;
