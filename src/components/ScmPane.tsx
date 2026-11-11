@@ -389,16 +389,16 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     return (
       <div className={`scm-list scm-${which} ${view === which ? 'on' : ''} ${collapsed ? 'collapsed' : ''}`} style={sizeStyle(which)}>
         {above && <div className="scm-splitter" title="Drag to resize, double-click for the default sizes" onMouseDown={(e) => resize(e, above, which)} onDoubleClick={() => setSizes(null, true)} />}
-        <div className="scm-title" onMouseDown={() => !collapsed && setView(which)}>
-          <span
-            className="scm-toggle"
-            title={`${collapsed ? 'Show' : 'Hide'} ${names[which].toLowerCase()}${which === 'log' ? ' (L)' : ''}`}
-            onMouseDown={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              fold(which)
-            }}
-          >
+        <div
+          className="scm-title"
+          title={`${collapsed ? 'Show' : 'Hide'} ${names[which].toLowerCase()}${which === 'log' ? ' (L)' : ''}`}
+          onMouseDown={(e) => {
+            if (e.button !== 0) return
+            fold(which)
+            if (collapsed) setView(which)
+          }}
+        >
+          <span className="scm-toggle">
             <svg className={`chev ${collapsed ? '' : 'open'}`} viewBox="0 0 16 16" aria-hidden>
               <path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
