@@ -78,3 +78,25 @@ export function describe(c: SqlConnection): string {
   const where = `${c.host || 'localhost'}${c.port && c.port !== defaultPorts[c.engine] ? ':' + c.port : ''}`
   return `${c.user ? c.user + '@' : ''}${where}${c.database ? '/' + c.database : ''}`
 }
+
+/** Something the Database sidebar asks a query tab to do once it's connected. */
+export type Request = { select?: { db: string; obj: DbObject }; insert?: string | { db: string; obj: DbObject }; database?: string }
+
+const requests = new Map<string, Request>()
+const requestListeners = new Set<() => void>()
+
+export function ask(tab: string, r: Request) {
+  requests.set(tab, r)
+  requestListeners.forEach((l) => l())
+}
+
+export function takeRequest(tab: string): Request | undefined {
+  const r = requests.get(tab)
+  requests.delete(tab)
+  return r
+}
+
+export function onRequest(fn: () => void): () => void {
+  requestListeners.add(fn)
+  return () => requestListeners.delete(fn)
+}

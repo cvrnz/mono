@@ -6,6 +6,7 @@ import { saveSessionNow } from './session'
 import { updateSettings } from './settings'
 import { basename, join, normalize } from './paths'
 import * as S from './store'
+import * as sql from './sql'
 
 export function root(): string {
   return S.connected()?.root ?? '/'
@@ -208,8 +209,18 @@ export function openSearch(kind: S.SearchKind, text = '') {
   showSidebar('search')
 }
 
-export function openSql(conn?: string) {
-  insertTab({ id: S.newId(), kind: 'sql', conn })
+export const toggleDatabase = () => toggleFixed('database')
+
+/** Opens a query tab on a saved connection (the one already open, unless `fresh`) and passes it a request. */
+export function openQuery(conn: string, request?: sql.Request, fresh = false) {
+  const s = S.get()
+  const mine = (t: S.Tab): t is S.SqlTab => t.kind === 'sql' && t.conn === conn
+  const active = s.tabs.find((t) => t.id === s.active)
+  const tab = fresh ? undefined : active && mine(active) ? active : s.tabs.find(mine)
+  const id = tab?.id ?? S.newId()
+  if (tab) activate(id)
+  else insertTab({ id, kind: 'sql', conn })
+  if (request) sql.ask(id, request)
 }
 
 export function cycleTab(step: number) {

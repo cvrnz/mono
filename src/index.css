@@ -1202,40 +1202,13 @@ kbd:last-of-type {
   flex-direction: column;
   height: 100%;
 }
-.sql-body {
-  display: flex;
+.sql-side {
   flex: 1;
   min-height: 0;
-}
-.sql-side {
-  flex: none;
-  width: 34ch;
-  min-width: 220px;
-  max-width: 40%;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--separator);
   outline: none;
-  font-size: var(--side-size);
-}
-.sql-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--dim);
-  font-size: var(--small);
-  font-weight: 600;
-  padding: 0 calc(var(--inset) + var(--pad));
-  height: 34px;
-  flex: none;
-  white-space: pre;
-}
-.sql-title-name {
-  flex: 1;
-  min-width: 0;
-  color: var(--fg);
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .sql-rows {
   flex: 1;
@@ -1260,8 +1233,13 @@ kbd:last-of-type {
 .sql-key {
   color: var(--yellow);
 }
-.sql-conn-name {
-  color: var(--fg);
+.sql-conn {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 220px;
+  height: 26px;
+  padding: 0 6px;
+  font-size: var(--small);
 }
 .sql-bad {
   color: var(--red);
@@ -1426,17 +1404,16 @@ kbd:last-of-type {
 .sql-corner {
   z-index: 3;
 }
-.sql-form {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  background: var(--bg);
-  display: block;
+.sql-dialog {
+  top: 12vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, 100vw - 48px);
+  max-height: 76vh;
+  overflow: auto;
 }
 .sql-form-inner {
-  width: min(640px, 100% - 48px);
-  margin: 0 auto;
-  padding: 12px 0 32px;
+  padding: 4px 20px 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1633,7 +1610,8 @@ kbd:last-of-type {
   gap: 2px;
 }
 .run-row:hover .run-actions,
-.run-side:focus .run-row.selected .run-actions {
+.run-side:focus .run-row.selected .run-actions,
+.sql-side:focus .run-row.selected .run-actions {
   display: flex;
 }
 /* A small icon button inside a row or a title. */

@@ -28,7 +28,7 @@ export type Settings = {
   dockerPath?: string
   recents: Target[]
   sqlConnections?: SqlConnection[]
-  sideWidths?: { sidebar?: number; sql?: number }
+  sideWidths?: { sidebar?: number }
   sidebar?: FixedKind | 'none'
   tabIcons?: boolean
   iconPack?: 'material' | 'vscode' | 'catppuccin'
@@ -55,6 +55,7 @@ export type SavedTab = (
   | { kind: 'explorer' }
   | { kind: 'search' }
   | { kind: 'run' }
+  | { kind: 'database' }
   | { kind: 'sql'; conn?: string; text?: string }
 ) & { splits?: { dir: Splits['dir']; count: number }; shells?: SavedShell[] }
 
@@ -120,9 +121,10 @@ export type SqlTab = TabBase & { kind: 'sql'; conn?: string; text?: string }
 export type SearchKind = 'files' | 'text'
 export type SearchTab = TabBase & { kind: 'search'; ask?: { kind: SearchKind; text: string; n: number } }
 export type RunTab = TabBase & { kind: 'run' }
-export type Tab = FileTab | DiffTab | CommitTab | TerminalTab | ScmTab | WelcomeTab | ExplorerTab | SqlTab | SearchTab | RunTab
+export type DatabaseTab = TabBase & { kind: 'database' }
+export type Tab = FileTab | DiffTab | CommitTab | TerminalTab | ScmTab | WelcomeTab | ExplorerTab | SqlTab | SearchTab | RunTab | DatabaseTab
 
-export const fixedKinds = ['explorer', 'scm', 'run', 'search'] as const
+export const fixedKinds = ['explorer', 'scm', 'run', 'search', 'database'] as const
 export type FixedKind = (typeof fixedKinds)[number]
 
 export function isFixed(t: Tab): boolean {

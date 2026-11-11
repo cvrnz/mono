@@ -18,6 +18,7 @@ import { viewerFor } from '../lib/viewers'
 import Explorer from './Explorer'
 import ScmPane from './ScmPane'
 import SqlPane from './SqlPane'
+import SqlSide from './SqlSide'
 import SearchPane from './SearchPane'
 import TerminalPane from './TerminalPane'
 import SideSplitter, { sideStyle, useSideWidth } from './SideSplitter'
@@ -45,6 +46,8 @@ export function tabLabel(tab: S.Tab): string {
       return 'Search'
     case 'run':
       return 'Run'
+    case 'database':
+      return 'Database'
     case 'sql':
       return tab.conn ? `SQL: ${tab.conn}` : 'SQL'
   }
@@ -309,6 +312,8 @@ function sideContent(tab: S.Tab, shown: boolean): ReactNode {
       return <SearchPane tab={tab} active={shown} />
     case 'run':
       return <RunPane tab={tab} active={shown} />
+    case 'database':
+      return <SqlSide id={tab.id} active={shown} />
     default:
       return null
   }

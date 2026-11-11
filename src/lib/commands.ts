@@ -215,10 +215,10 @@ export const commands: Command[] = [
   { name: 'Sidebar', desc: 'Show or hide the sidebar', keys: 'Mod+B', aliases: ['ToggleSidebar'], run: () => A.toggleSidebar() },
   {
     name: 'Sql',
-    desc: 'Query a database in a new tab (PostgreSQL, MySQL, SQL Server, SQLite)',
+    desc: 'Show or hide the Database sidebar, with your connections (PostgreSQL, MySQL, SQL Server, SQLite)',
     keys: 'Mod+D',
     aliases: ['SQL', 'Database', 'DB', 'sql', 'db'],
-    run: (args) => A.openSql(args.trim() || undefined),
+    run: (args) => (args.trim() ? A.openQuery(args.trim()) : A.toggleDatabase()),
   },
   {
     name: 'Search',
