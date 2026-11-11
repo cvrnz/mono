@@ -5,6 +5,7 @@ import { closeProject, connect, forget } from '../lib/connection'
 import { basename } from '../lib/paths'
 import { updateSettings } from '../lib/settings'
 import * as S from '../lib/store'
+import Icon from './Icon'
 
 type Container = { id: string; name: string; image: string; status: string; running: boolean; project?: string; service?: string }
 
@@ -133,14 +134,14 @@ export default function ConnectScreen() {
                   <span className="name">{describe(t)}</span>
                   <span className="meta">{details(t)}</span>
                   <span
-                    className="x"
+                    className="x icon-btn"
                     title="Forget"
                     onClick={(e) => {
                       e.stopPropagation()
                       forget(t)
                     }}
                   >
-                    ✕
+                    <Icon name="close" />
                   </span>
                 </div>
               ))}

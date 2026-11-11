@@ -9,6 +9,7 @@ import { currentTheme } from '../lib/settings'
 import * as S from '../lib/store'
 import { xtermTheme } from '../lib/themes'
 import TermFind from './TermFind'
+import Icon from './Icon'
 
 export const runViewPane = 'run-view'
 
@@ -104,8 +105,8 @@ export default function RunView({ id }: { id: string }) {
             Run again
           </span>
         )}
-        <span className="run-btn" title="Close (Esc)" onMouseDown={(e) => (e.preventDefault(), R.show(null))}>
-          ✕
+        <span className="icon-btn" title="Close (Esc)" onMouseDown={(e) => (e.preventDefault(), R.show(null))}>
+          <Icon name="close" />
         </span>
       </div>
       <div className="run-view-body">

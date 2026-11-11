@@ -13,10 +13,11 @@ import { setupVim } from '../lib/vim'
 import { useHints } from './Hints'
 import SideSplitter, { sideStyle, useSideWidth } from './SideSplitter'
 import SqlGrid from './SqlGrid'
+import Icon from './Icon'
 
 type Props = { tab: S.SqlTab; active: boolean }
 
-type Icon = 'folder' | 'database' | sql.ObjectKind | 'column' | 'key'
+type SqlIconName = 'folder' | 'database' | sql.ObjectKind | 'column' | 'key'
 type Row =
   | { kind: 'conn'; conn: S.SqlConnection }
   | { kind: 'new' }
@@ -45,7 +46,7 @@ function keyOf(r: Row | undefined): string | null {
   return null
 }
 
-const iconPaths: Record<Icon, React.ReactNode> = {
+const iconPaths: Record<SqlIconName, React.ReactNode> = {
   folder: <path d="M1.5 4.5a1 1 0 0 1 1-1h3.4l1.6 1.6h6a1 1 0 0 1 1 1v6.4a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" />,
   database: (
     <>
@@ -81,7 +82,7 @@ const iconPaths: Record<Icon, React.ReactNode> = {
   ),
 }
 
-function SqlIcon({ icon }: { icon: Icon }) {
+function SqlIcon({ icon }: { icon: SqlIconName }) {
   return (
     <svg className={`sql-icon sql-icon-${icon}`} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       {iconPaths[icon]}
@@ -642,7 +643,12 @@ export default function SqlPane({ tab, active }: Props) {
           </>
         )
       case 'new':
-        return <span className="desc">+ New connection</span>
+        return (
+          <>
+            <Icon name="plus" className="sql-icon sql-add" />
+            <span className="desc">New connection</span>
+          </>
+        )
       case 'folder':
         return (
           <>
@@ -737,8 +743,8 @@ export default function SqlPane({ tab, active }: Props) {
                 {current?.name || sql.engineNames[info.engine]}
                 <span className="desc">  {info.database || sql.describe(current!)}</span>
               </span>
-              <span className="sql-title-x" title="Disconnect" onMouseDown={(e) => e.preventDefault()} onClick={close}>
-                ✕
+              <span className="icon-btn" title="Disconnect" onMouseDown={(e) => e.preventDefault()} onClick={close}>
+                <Icon name="close" />
               </span>
             </>
           ) : (
@@ -757,7 +763,7 @@ export default function SqlPane({ tab, active }: Props) {
             <div
               key={i}
               className={`row sql-node ${i === at ? 'selected' : ''} ${r.kind === 'note' && r.text !== 'Loading…' ? 'sql-bad' : ''}`}
-              style={{ paddingLeft: `calc(${depthOf(r) * 12}px + 0.6ch)` }}
+              style={{ paddingLeft: `calc(var(--pad) + ${depthOf(r) * 16}px)` }}
               onMouseDown={() => setCursor(i)}
               onClick={() => {
                 if (keyOf(r)) expand(r)

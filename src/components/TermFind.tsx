@@ -2,6 +2,7 @@ import type { SearchAddon } from '@xterm/addon-search'
 import type { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
 import { currentTheme } from '../lib/settings'
+import Icon from './Icon'
 
 type Props = { term: Terminal; search: SearchAddon; onClose: () => void }
 
@@ -65,14 +66,14 @@ export default function TermFind({ term, search, onClose }: Props) {
         }}
       />
       <span className="term-find-count">{text ? (found && found.count ? `${found.index + 1} of ${found.count}` : 'No results') : ''}</span>
-      <span className="term-find-btn" title="Previous (Shift+Enter)" onMouseDown={(e) => (e.preventDefault(), find(text, true))}>
-        ↑
+      <span className="icon-btn" title="Previous (Shift+Enter)" onMouseDown={(e) => (e.preventDefault(), find(text, true))}>
+        <Icon name="up" />
       </span>
-      <span className="term-find-btn" title="Next (Enter)" onMouseDown={(e) => (e.preventDefault(), find(text))}>
-        ↓
+      <span className="icon-btn" title="Next (Enter)" onMouseDown={(e) => (e.preventDefault(), find(text))}>
+        <Icon name="down" />
       </span>
-      <span className="term-find-btn" title="Close (Esc)" onMouseDown={(e) => (e.preventDefault(), close())}>
-        ✕
+      <span className="icon-btn" title="Close (Esc)" onMouseDown={(e) => (e.preventDefault(), close())}>
+        <Icon name="close" />
       </span>
     </div>
   )

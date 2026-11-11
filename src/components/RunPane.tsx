@@ -4,6 +4,7 @@ import { register } from '../lib/panes'
 import * as R from '../lib/runs'
 import * as S from '../lib/store'
 import { useHints } from './Hints'
+import Icon from './Icon'
 
 type Props = { tab: S.RunTab; active: boolean }
 type Form = { at: number | null; name: string; command: string; cwd: string }
@@ -165,8 +166,8 @@ export default function RunPane({ tab, active }: Props) {
       <div className="run-section run-configs">
         <div className="scm-title run-title">
           Configurations
-          <span className="run-title-add" title="Add a configuration (a)" onMouseDown={(e) => (e.preventDefault(), edit(undefined))}>
-            +
+          <span className="icon-btn run-title-add" title="Add a configuration (a)" onMouseDown={(e) => (e.preventDefault(), edit(undefined))}>
+            <Icon name="plus" />
           </span>
         </div>
         <div className="scm-rows">
@@ -176,7 +177,8 @@ export default function RunPane({ tab, active }: Props) {
               if (form?.at === null) return <div key="form">{formView(form)}</div>
               return (
                 <div key="add" className={`row run-row dim ${i === at ? 'selected' : ''}`} onMouseDown={select(i)} onClick={() => edit(undefined)}>
-                  {list.length ? '+ Add configuration' : '+ Add a configuration, like bun run dev'}
+                  <Icon name="plus" className="run-play run-add" />
+                  {list.length ? 'Add configuration' : 'Add a configuration, like bun run dev'}
                 </div>
               )
             }
@@ -193,11 +195,11 @@ export default function RunPane({ tab, active }: Props) {
                 <span className="name">{r.config.name}</span>
                 {r.config.name !== r.config.command && <span className="desc">{r.config.command}</span>}
                 <span className="run-actions">
-                  <span title="Edit (e)" onClick={(e) => (e.stopPropagation(), edit(r))}>
-                    ✎
+                  <span className="icon-btn" title="Edit (e)" onClick={(e) => (e.stopPropagation(), edit(r))}>
+                    <Icon name="edit" />
                   </span>
-                  <span title="Delete (d)" onClick={(e) => (e.stopPropagation(), remove(r.at))}>
-                    ✕
+                  <span className="icon-btn" title="Delete (d)" onClick={(e) => (e.stopPropagation(), remove(r.at))}>
+                    <Icon name="close" />
                   </span>
                 </span>
               </div>
@@ -228,16 +230,16 @@ export default function RunPane({ tab, active }: Props) {
                 </span>
                 <span className="run-actions">
                   {going ? (
-                    <span title="Stop (s)" onClick={(e) => (e.stopPropagation(), R.stop(x.id))}>
-                      ■
+                    <span className="icon-btn" title="Stop (s)" onClick={(e) => (e.stopPropagation(), R.stop(x.id))}>
+                      <Icon name="stop" />
                     </span>
                   ) : (
-                    <span title="Run again (r)" onClick={(e) => (e.stopPropagation(), R.rerun(x.id))}>
-                      ↻
+                    <span className="icon-btn" title="Run again (r)" onClick={(e) => (e.stopPropagation(), R.rerun(x.id))}>
+                      <Icon name="again" />
                     </span>
                   )}
-                  <span title="Dismiss (x)" onClick={(e) => (e.stopPropagation(), R.dismiss(x.id))}>
-                    ✕
+                  <span className="icon-btn" title="Dismiss (x)" onClick={(e) => (e.stopPropagation(), R.dismiss(x.id))}>
+                    <Icon name="close" />
                   </span>
                 </span>
               </div>

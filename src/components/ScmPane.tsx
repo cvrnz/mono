@@ -8,6 +8,7 @@ import { basename, dirname, isInside, join, pretty } from '../lib/paths'
 import { updateSettings } from '../lib/settings'
 import * as S from '../lib/store'
 import FileIcon from './FileIcon'
+import Icon from './Icon'
 import { useHints } from './Hints'
 
 type Busy = { repo: string; verb: string; frame: number } | { repo: string; text: string; cls: string }
@@ -163,7 +164,10 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     }
     return repoTree(repos).map((e) => {
       const r = e.repo
-      if (!r) return { key: 'dir:' + e.label, indent: e.indent, node: <span className="dim name">{e.label}</span> }
+      if (!r) {
+        const name = e.label.replace(/\/$/, '')
+        return { key: 'dir:' + e.label, indent: e.indent, node: <><FileIcon n={{ name, path: name, dir: true }} open /><span className="dim name">{name}</span></> }
+      }
       return {
         key: r.path,
         indent: e.indent,
@@ -171,7 +175,8 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
         title: `${r.path}\n${r.branch}${r.arrows ? '  ' + r.arrows : ''}`,
         node: (
           <>
-            <span className="name" style={repo?.path === r.path ? { color: 'var(--blue)', fontWeight: 'bold' } : undefined}>
+            <Icon name="repo" className={`ficon ${repo?.path === r.path ? 'scm-current' : 'dim'}`} />
+            <span className={`name ${repo?.path === r.path ? 'scm-current' : ''}`}>
               {e.label}
             </span>
             <span className="branch">
@@ -409,7 +414,7 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
                 key={r.key}
                 title={r.title}
                 className={`row ${i === cursors[which] ? 'selected' : ''}`}
-                style={r.indent ? { paddingLeft: `calc(1ch + ${r.indent * 12}px)` } : undefined}
+                style={r.indent ? { paddingLeft: `calc(var(--pad) + ${r.indent * 16}px)` } : undefined}
                 onMouseDown={() => {
                   setView(which)
                   if (r.item) setSel((s) => ({ ...s, [which]: i }))
@@ -430,7 +435,10 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     <div className="scm">
       <div className="scm-side" ref={side} tabIndex={0} onKeyDown={onKeyDown}>
         {list('repos', 'Repositories', repoRows)}
-        {list('changes', 'Changes', changeRows, repo && <span className="scm-repo">{'  ' + repo.name}</span>)}
+        {list('changes', 'Changes', changeRows, repo && <>
+          {files.length > 0 && <span className="badge">{files.length}</span>}
+          <span className="scm-repo">{repo.name}</span>
+        </>)}
         {repo && list('log', 'Log', logRows)}
       </div>
     </div>

@@ -667,7 +667,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
                 key={n.path}
                 data-path={n.path}
                 className={`row ${isPicked(n.path) && !dragging ? 'selected' : ''} ${picked.size > 1 && i === index ? 'cursor' : ''} ${moveDest && moveDest !== root && isInside(n.path, moveDest) ? 'drop-zone' : ''} ${moveDest === n.path ? 'drop' : ''} ${moving === n.path || dragging?.paths.includes(n.path) ? 'moving' : ''} ${isCut(n.path) ? 'cut' : ''}`}
-                style={{ paddingLeft: `calc(0.6ch + ${n.depth * 16}px)` }}
+                style={{ paddingLeft: 4 + n.depth * 16 }}
                 onContextMenu={(e) => showMenu(e, n)}
                 onMouseDown={(e) => {
                   if (moving || e.button !== 0) return
