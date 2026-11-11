@@ -429,9 +429,9 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
   return (
     <div className="scm">
       <div className="scm-side" ref={side} tabIndex={0} onKeyDown={onKeyDown}>
-        {list('repos', 'REPOSITORIES', repoRows)}
-        {list('changes', 'CHANGES', changeRows, repo && <span className="scm-repo">{'  ' + repo.name}</span>)}
-        {repo && list('log', 'LOG', logRows)}
+        {list('repos', 'Repositories', repoRows)}
+        {list('changes', 'Changes', changeRows, repo && <span className="scm-repo">{'  ' + repo.name}</span>)}
+        {repo && list('log', 'Log', logRows)}
       </div>
     </div>
   )

@@ -219,20 +219,21 @@ function TabBar() {
 }
 
 const modeNames: Record<string, string> = {
-  normal: 'NORMAL',
-  insert: 'INSERT',
-  visual: 'VISUAL',
-  'visual-line': 'VISUAL LINE',
-  'visual-block': 'VISUAL BLOCK',
-  replace: 'REPLACE',
-  terminal: 'TERMINAL',
+  normal: 'Normal',
+  insert: 'Insert',
+  visual: 'Visual',
+  'visual-line': 'Visual line',
+  'visual-block': 'Visual block',
+  replace: 'Replace',
+  terminal: 'Terminal',
 }
 
 function StatusBar() {
   const tab = S.useStore((s) => s.tabs.find((t) => t.id === s.active))
   const status = S.useStore((s) => (tab ? s.status[S.focusedPane(tab)] : undefined))
   const conn = S.useStore((s) => s.conn)
-  const mode = modeNames[status?.mode ?? 'normal'] ?? status?.mode?.toUpperCase() ?? 'NORMAL'
+  const raw = status?.mode ?? 'normal'
+  const mode = modeNames[raw] ?? raw[0].toUpperCase() + raw.slice(1)
   const parts: ReactNode[] = []
   if (status?.errors) parts.push(<span className="error">✖ {status.errors}</span>)
   if (status?.warnings) parts.push(<span className="warn">▲ {status.warnings}</span>)

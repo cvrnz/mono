@@ -870,8 +870,6 @@ button:disabled,
 .connect h2 {
   font-size: 13px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
   color: var(--dim);
   margin: 24px 0 8px;
 }

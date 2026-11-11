@@ -164,7 +164,7 @@ export default function RunPane({ tab, active }: Props) {
     <div className="run-side" ref={side} tabIndex={0} onKeyDown={onKeyDown}>
       <div className="run-section run-configs">
         <div className="scm-title run-title">
-          CONFIGURATIONS
+          Configurations
           <span className="run-title-add" title="Add a configuration (a)" onMouseDown={(e) => (e.preventDefault(), edit(undefined))}>
             +
           </span>
@@ -206,7 +206,7 @@ export default function RunPane({ tab, active }: Props) {
         </div>
       </div>
       <div className="run-section run-list">
-        <div className="scm-title run-title">RUNNING</div>
+        <div className="scm-title run-title">Running</div>
         <div className="scm-rows">
           {runs.length === 0 && <div className="row dim run-empty">Nothing has run yet</div>}
           {rows.map((r, i) => {
