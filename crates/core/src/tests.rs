@@ -217,6 +217,20 @@ fn a_terminal_names_the_process_running_in_it() {
 }
 
 #[test]
+fn a_terminal_reports_the_folder_its_shell_is_in() {
+    let (s, events) = service();
+    let (_d, w) = dir();
+    std::fs::create_dir(format!("{w}/sub")).unwrap();
+    let opened = s.call("term.open", json!({ "cols": 80, "rows": 24, "cwd": w })).unwrap();
+    let id = opened["id"].clone();
+    wait_for(&events, "term.cwd", |p| p["id"] == id && p["cwd"] == json!(w));
+    s.call("term.input", json!({ "id": id, "data": B64.encode("cd sub\r") })).unwrap();
+    let sub = format!("{w}/sub");
+    wait_for(&events, "term.cwd", |p| p["id"] == id && p["cwd"] == json!(sub));
+    s.call("term.close", json!({ "id": id })).unwrap();
+}
+
+#[test]
 fn watched_folders_report_changes() {
     let (s, events) = service();
     let (_d, w) = dir();

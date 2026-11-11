@@ -1,12 +1,25 @@
 import { connect, sameTarget } from './connection'
 import { pane } from './panes'
+import { dropOutputsBut, flushOutputs, restoreShell, shellKey } from './terminals'
 import { updateSettings } from './settings'
 import * as S from './store'
 
 const pending = new Map<string, S.SavedProject>()
 const cursors = new Map<string, { line: number; col: number }>()
 
+function terminalPanes(t: { kind: string; id: string; splits?: S.Splits }): string[] {
+  return [...(t.kind === 'terminal' ? [t.id] : []), ...(t.splits?.panes ?? [])]
+}
+
 function saveTab(t: S.Tab): S.SavedTab | null {
+  const st = saveTabOnly(t)
+  const panes = terminalPanes(t)
+  if (!st || !panes.length) return st
+  const cwds = S.get().cwds
+  return { ...st, shells: panes.map((p) => ({ cwd: cwds[p], key: shellKey(p) })) }
+}
+
+function saveTabOnly(t: S.Tab): S.SavedTab | null {
   const splits = t.splits ? { dir: t.splits.dir, count: t.splits.panes.length } : undefined
   switch (t.kind) {
     case 'file': {
@@ -56,6 +69,12 @@ function snapshot(): S.SavedSession {
 }
 
 function openTab(t: S.SavedTab): S.Tab {
+  const tab = openTabOnly(t)
+  terminalPanes(tab).forEach((p, i) => t.shells?.[i] && restoreShell(p, t.shells[i]))
+  return tab
+}
+
+function openTabOnly(t: S.SavedTab): S.Tab {
   const id = S.newId()
   const splits = t.splits?.count ? { dir: t.splits.dir, panes: Array.from({ length: t.splits.count }, () => S.newId('p')) } : undefined
   switch (t.kind) {
@@ -99,7 +118,9 @@ function changed(): S.SavedSession | null {
 function save() {
   timer = undefined
   const session = changed()
-  if (session) updateSettings({ session })
+  if (!session) return
+  updateSettings({ session })
+  dropOutputsBut(new Set(session.projects.flatMap((p) => p.tabs.flatMap((t) => t.shells?.map((s) => s.key) ?? []))))
 }
 
 export function restoreSession(): () => void {
@@ -121,6 +142,7 @@ export function restoreSession(): () => void {
 }
 
 export function saveSessionNow(): Promise<void> {
+  flushOutputs()
   clearTimeout(timer)
   timer = undefined
   changed()

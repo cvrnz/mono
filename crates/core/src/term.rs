@@ -83,6 +83,28 @@ fn proc_name(_: i32) -> Option<String> {
     None
 }
 
+#[cfg(target_os = "linux")]
+fn proc_cwd(pid: i32) -> Option<String> {
+    std::fs::read_link(format!("/proc/{pid}/cwd")).ok().map(|p| p.to_string_lossy().into_owned())
+}
+
+#[cfg(target_os = "macos")]
+fn proc_cwd(pid: i32) -> Option<String> {
+    let mut info: libc::proc_vnodepathinfo = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of::<libc::proc_vnodepathinfo>() as i32;
+    let n = unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDVNODEPATHINFO, 0, (&mut info as *mut libc::proc_vnodepathinfo).cast(), size) };
+    if n != size {
+        return None;
+    }
+    let path = unsafe { std::ffi::CStr::from_ptr(info.pvi_cdir.vip_path.as_ptr().cast()) };
+    Some(path.to_string_lossy().into_owned()).filter(|p| !p.is_empty())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn proc_cwd(_: i32) -> Option<String> {
+    None
+}
+
 impl Terminals {
     pub fn new(emit: Emit) -> Self {
         Terminals { all: Default::default(), next: AtomicU64::new(0), emit }
@@ -130,7 +152,7 @@ impl Terminals {
         });
         let (emit, all, tid) = (self.emit.clone(), self.all.clone(), id.clone());
         std::thread::spawn(move || {
-            let mut last = String::new();
+            let (mut last, mut last_cwd) = (String::new(), String::new());
             loop {
                 std::thread::sleep(Duration::from_millis(600));
                 let leader = match all.lock().unwrap().get(&tid) {
@@ -141,6 +163,11 @@ impl Terminals {
                 if !name.is_empty() && name != last {
                     emit("term.proc", json!({ "id": tid, "name": name }));
                     last = name;
+                }
+                let cwd = pid.and_then(|p| proc_cwd(p as i32)).unwrap_or_default();
+                if !cwd.is_empty() && cwd != last_cwd {
+                    emit("term.cwd", json!({ "id": tid, "cwd": cwd }));
+                    last_cwd = cwd;
                 }
             }
         });

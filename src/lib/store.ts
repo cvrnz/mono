@@ -56,7 +56,10 @@ export type SavedTab = (
   | { kind: 'search' }
   | { kind: 'run' }
   | { kind: 'sql'; conn?: string; text?: string }
-) & { splits?: { dir: Splits['dir']; count: number } }
+) & { splits?: { dir: Splits['dir']; count: number }; shells?: SavedShell[] }
+
+/** A terminal pane of a saved tab (the tab's own first if it's a terminal, then its splits), and where its output is kept. */
+export type SavedShell = { cwd?: string; key: string }
 
 export type SavedProject = { target: Target; tabs: SavedTab[]; active: number }
 export type SavedSession = { projects: SavedProject[]; current: number }
@@ -178,6 +181,8 @@ export type State = {
   previewIcons: string | null
   /** What each terminal pane is running, by pane id. */
   procs: Record<string, string>
+  /** The folder each terminal pane's shell is in, by pane id. */
+  cwds: Record<string, string>
   runs: Run[]
   /** The run whose output covers the panes, if any. */
   runView: string | null
@@ -202,6 +207,7 @@ let state: State = {
   previewTheme: null,
   previewIcons: null,
   procs: {},
+  cwds: {},
   runs: [],
   runView: null,
   session: 0,

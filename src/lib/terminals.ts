@@ -1,7 +1,7 @@
 import { agentFor, fromBase64, onAgent, toBase64 } from './agent'
 import * as S from './store'
 
-type Sink = { data: (bytes: Uint8Array) => void; exit: (code: number) => void; proc?: (name: string) => void }
+type Sink = { data: (bytes: Uint8Array) => void; exit: (code: number) => void; proc?: (name: string) => void; cwd?: (path: string) => void }
 
 const sinks = new Map<string, Sink>()
 const early = new Map<string, { data: Uint8Array[]; exit?: number }>()
@@ -18,6 +18,7 @@ function listen() {
     else hold(key).data.push(bytes)
   })
   onAgent('term.proc', (p: { id: string; name: string }, project) => sinks.get(keyOf(project, p.id))?.proc?.(p.name))
+  onAgent('term.cwd', (p: { id: string; cwd: string }, project) => sinks.get(keyOf(project, p.id))?.cwd?.(p.cwd))
   onAgent('term.exit', (p: { id: string; code: number }, project) => {
     const key = keyOf(project, p.id)
     const sink = sinks.get(key)
@@ -93,5 +94,72 @@ export async function openShell(project: string, cols: number, rows: number, cwd
       sinks.delete(key)
       if (S.project(project)) agent.termClose(id).catch(() => {})
     },
+  }
+}
+
+// A terminal pane's output is kept in the webview's storage under a key that outlives the pane, so a
+// restarted app can show it again above a new shell in the same folder.
+const storagePrefix = 'mono.term.'
+const keys = new Map<string, string>()
+const restoring = new Map<string, S.SavedShell>()
+const flushers = new Map<string, () => void>()
+
+export function shellKey(pane: string): string {
+  let key = keys.get(pane)
+  if (!key) keys.set(pane, (key = crypto.randomUUID()))
+  return key
+}
+
+/** Gives a pane opened from a saved session the output it had. */
+export function restoreShell(pane: string, saved: S.SavedShell) {
+  keys.set(pane, saved.key)
+  restoring.set(pane, saved)
+}
+
+export function takeRestored(pane: string): { cwd?: string; text: string | null } | null {
+  const saved = restoring.get(pane)
+  if (!saved) return null
+  restoring.delete(pane)
+  let text: string | null = null
+  try {
+    text = localStorage.getItem(storagePrefix + saved.key)
+  } catch {
+  }
+  return { cwd: saved.cwd, text }
+}
+
+/** Keeps a pane's output every few seconds while it changes, and when the session is saved on quitting. */
+export function keepOutput(pane: string, text: () => string): { changed(): void; stop(): void } {
+  let changed = false
+  const flush = () => {
+    changed = false
+    try {
+      localStorage.setItem(storagePrefix + shellKey(pane), text())
+    } catch {
+    }
+  }
+  flushers.set(pane, flush)
+  const timer = setInterval(() => changed && flush(), 3000)
+  return {
+    changed: () => (changed = true),
+    stop: () => {
+      clearInterval(timer)
+      if (flushers.get(pane) === flush) flushers.delete(pane)
+      keys.delete(pane)
+    },
+  }
+}
+
+export function flushOutputs() {
+  flushers.forEach((f) => f())
+}
+
+/** Forgets the output of panes that aren't in the session anymore. */
+export function dropOutputsBut(used: Set<string>) {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith(storagePrefix) && !used.has(k.slice(storagePrefix.length))) localStorage.removeItem(k)
+    }
+  } catch {
   }
 }

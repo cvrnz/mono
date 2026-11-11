@@ -1,5 +1,6 @@
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
+import { SerializeAddon } from '@xterm/addon-serialize'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
@@ -10,7 +11,7 @@ import { register } from '../lib/panes'
 import { basename, shellQuote } from '../lib/paths'
 import { currentTheme } from '../lib/settings'
 import * as S from '../lib/store'
-import { openShell, type Shell } from '../lib/terminals'
+import { keepOutput, openShell, takeRestored, type Shell } from '../lib/terminals'
 import { TermVim } from '../lib/termVim'
 import { xtermTheme } from '../lib/themes'
 import TermFind from './TermFind'
@@ -50,6 +51,8 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
     const search = new SearchAddon()
     term.loadAddon(search)
     searchRef.current = search
+    const serialize = new SerializeAddon()
+    term.loadAddon(serialize)
     term.open(host.current!)
     try {
       const webgl = new WebglAddon()
@@ -78,19 +81,34 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
       }
     }
 
+    const restored = takeRestored(id)
+    let where = restored?.cwd ?? cwd
+    if (restored?.text) {
+      doFit()
+      term.write(restored.text + '\r\n\x1b[2m[Restored from the last session]\x1b[0m\r\n')
+    }
+    const kept = keepOutput(id, () => serialize.serialize({ scrollback: 1000, excludeModes: true, excludeAltBuffer: true }))
+
     const start = async () => {
       state = 'starting'
       session = proj()?.session ?? 0
       doFit()
       try {
-        const sh = await openShell(project, term.cols, term.rows, cwd, {
-          data: (bytes) => term.write(bytes),
+        const sh = await openShell(project, term.cols, term.rows, where, {
+          data: (bytes) => {
+            term.write(bytes)
+            kept.changed()
+          },
           exit: (code) => {
             if (state !== 'running') return
             state = 'exited'
             term.write(`\r\n\x1b[2m[Process exited ${code}]\x1b[0m`)
           },
           proc: (name) => S.set((s) => ({ procs: { ...s.procs, [id]: name.replace(/^-/, '') } })),
+          cwd: (path) => {
+            where = path
+            S.set((s) => ({ cwds: { ...s.cwds, [id]: path } }))
+          },
         })
         if (disposed) {
           sh.close()
@@ -115,8 +133,8 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
         term.write('\r\n\x1b[2m[Disconnected]\x1b[0m')
       }
       if (state === 'dead' && s.conn.state === 'connected' && s.session !== session) {
-        term.write('\x1b[2m  Press any key for a new shell\x1b[0m')
-        session = s.session
+        term.write('\r\n\x1b[2m[Reconnected, with a new shell]\x1b[0m\r\n')
+        start()
       }
     })
 
@@ -206,6 +224,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
     return () => {
       disposed = true
       unregister()
+      kept.stop()
       unsub()
       unsubTheme()
       observer.disconnect()
@@ -220,7 +239,9 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
         delete status[id]
         const procs = { ...s.procs }
         delete procs[id]
-        return { status, procs }
+        const cwds = { ...s.cwds }
+        delete cwds[id]
+        return { status, procs, cwds }
       })
     }
   }, [id])
