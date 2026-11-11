@@ -3,10 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { agentFor, dropFiles, onAgent, type Entry } from '../lib/agent'
-import { explorerRefreshers, openFile, type OpenOptions } from '../lib/actions'
+import { explorerRefreshers, focusPane, openFile, type OpenOptions } from '../lib/actions'
 import { copyText, errorText, invoke } from '../lib/bridge'
 import { choose, prompt, toast } from '../lib/dialogs'
-import { register } from '../lib/panes'
+import { dropPaths, dropTargetAt, register } from '../lib/panes'
 import { basename, dirname, isInside, join, pretty } from '../lib/paths'
 import { keyLabel } from '../lib/commands'
 import * as S from '../lib/store'
@@ -20,7 +20,7 @@ type Node = { path: string; name: string; dir: boolean; link: boolean; depth: nu
 type Props = { tab: S.ExplorerTab; active: boolean }
 type Move = { from: string; to: string }
 type Clip = { op: 'copy' | 'cut'; paths: string[]; project: string }
-type Drag = { from: string; paths: string[]; over: string | null }
+type Drag = { from: string; paths: string[]; over: string | null; into?: boolean }
 
 let clip: Clip | null = null
 const clipListeners = new Set<() => void>()
@@ -452,6 +452,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     let started = false
     let cancelled = false
     let over: string | null = null
+    let into: ReturnType<typeof dropTargetAt> = null
     let opener: ReturnType<typeof setTimeout> | undefined
     const place = (ev: MouseEvent) => {
       if (ghost.current) ghost.current.style.transform = `translate(${ev.clientX + 14}px, ${ev.clientY + 10}px)`
@@ -465,12 +466,14 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
       }
       requestAnimationFrame(() => place(ev))
       const dir = dirAt(ev.clientX, ev.clientY)
+      const pane = dir ? null : dropTargetAt(ev.clientX, ev.clientY)
+      if (dir !== over || Boolean(pane) !== Boolean(into)) setDragging({ from: n.path, paths, over: dir, into: Boolean(pane) })
+      into = pane
       if (dir !== over) {
         over = dir
         clearTimeout(opener)
         const target = nodes.find((m) => m.path === dir)
         if (target?.dir && !expanded.has(target.path)) opener = setTimeout(() => toggle(target, true), 700)
-        setDragging({ from: n.path, paths, over: dir })
       }
     }
     const stop = () => {
@@ -487,13 +490,18 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
       cancelled = true
       stop()
     }
-    const onUp = () => {
+    const onUp = (ev: MouseEvent) => {
       window.removeEventListener('mouseup', onUp)
       stop()
       if (!started) return
       dragged.current = true
       setTimeout(() => (dragged.current = false))
-      if (over && !cancelled) moveAll(paths, over)
+      if (cancelled) return
+      if (over) moveAll(paths, over)
+      else if (into) {
+        focusPane(into.tab, into.pane)
+        dropPaths(into.pane, paths, ev.clientX, ev.clientY)
+      }
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -705,6 +713,7 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
               <FileIcon n={draggedNode} open={false} />
               <span className={draggedNode.dir ? 'dir' : ''}>{dragging.paths.length > 1 ? `${draggedNode.name} and ${items(dragging.paths.length - 1)} more` : draggedNode.name}</span>
               {dragging.over && <span className="dim">{'  → '}{pretty(dragging.over, root, '') || basename(root) || '/'}</span>}
+              {dragging.into && <span className="dim">{'  → insert the path'}</span>}
             </div>
           )}
         </div>

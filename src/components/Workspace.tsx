@@ -354,6 +354,8 @@ function ProjectPanes({ project, current }: { project: S.Project; current: boole
         return ids.map((id, i) => (
           <div
             key={id}
+            data-tab={tab.id}
+            data-pane={id}
             className={`pane ${shown ? '' : 'hidden'} ${tab.splits ? 'split-' + tab.splits.dir : ''}`}
             style={paneStyle(i, ids.length, tab.splits?.dir)}
             onMouseDownCapture={() => A.focusPane(tab.id, id)}

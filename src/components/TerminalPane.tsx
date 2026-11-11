@@ -7,7 +7,7 @@ import { closePane, closeTab } from '../lib/actions'
 import { copyText, errorText, pasteText } from '../lib/bridge'
 import { charWidth } from '../lib/metrics'
 import { register } from '../lib/panes'
-import { basename } from '../lib/paths'
+import { basename, shellQuote } from '../lib/paths'
 import { currentTheme } from '../lib/settings'
 import * as S from '../lib/store'
 import { openShell, type Shell } from '../lib/terminals'
@@ -191,7 +191,15 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
       if (term.options.theme?.background !== theme.background || term.options.theme?.foreground !== theme.foreground) term.options.theme = theme
     })
 
-    const unregister = register(id, { focus: () => term.focus(), shellInput: () => vim.mode === 'terminal', find: () => setFinding(true) })
+    const unregister = register(id, {
+      focus: () => term.focus(),
+      shellInput: () => vim.mode === 'terminal',
+      find: () => setFinding(true),
+      drop: (paths) => {
+        if (!onKey()) shell?.write(paths.map(shellQuote).join(' ') + ' ')
+        term.focus()
+      },
+    })
     start()
 
     return () => {

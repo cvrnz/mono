@@ -64,3 +64,8 @@ export function extname(p: string): string {
   const dot = name.lastIndexOf('.')
   return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
 }
+
+/** Quotes a path for a shell if it has anything a shell would read as more than a path. */
+export function shellQuote(p: string): string {
+  return /^[\w@%+=:,./~-]+$/.test(p) ? p : `'${p.replace(/'/g, `'\\''`)}'`
+}
