@@ -567,9 +567,6 @@ button:disabled,
 .drag-ghost .icon {
   color: var(--dim);
 }
-.drag-ghost .dir {
-  color: var(--blue);
-}
 .dragging-file,
 .dragging-file * {
   cursor: grabbing !important;
@@ -577,9 +574,6 @@ button:disabled,
 }
 .explorer-tree .icon {
   color: var(--dim);
-}
-.explorer-tree .dir {
-  color: var(--blue);
 }
 .explorer-tree .link {
   color: var(--cyan);
