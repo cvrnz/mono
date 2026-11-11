@@ -4,14 +4,14 @@ import { comboOf, commands, hasModifier, isComplete, keyLabel, keysOf, resolve, 
 import { toast } from '../lib/dialogs'
 import { setCapturing } from '../lib/keys'
 import { iconPacks } from '../lib/fileIcons'
-import { fonts } from '../lib/fonts'
+import { fonts, uiFonts } from '../lib/fonts'
 import { fuzzy, highlight } from '../lib/fuzzy'
 import { updateSettings } from '../lib/settings'
 import * as S from '../lib/store'
 import { themes } from '../lib/themes'
 import FileIcon from './FileIcon'
 
-type Mode = 'commands' | 'themes' | 'icons' | 'fonts' | 'keys'
+type Mode = 'commands' | 'themes' | 'icons' | 'fonts' | 'uiFonts' | 'keys'
 const samples = ['src/', 'index.ts', 'App.tsx', 'package.json', 'README.md', 'main.rs', 'app.py', 'style.css', 'index.html', 'logo.png', 'Dockerfile', '.gitignore']
 
 function IconSamples() {
@@ -54,19 +54,21 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
   const savedPack = S.useStore((s) => s.settings.iconPack ?? 'material')
   const changedKeys = S.useStore((s) => s.settings.keys)
   const [capture, setCapture] = useState<string | null>(null)
+  const fontKey = mode === 'uiFonts' ? 'uiFont' : 'fontFamily'
+  const fontList = mode === 'uiFonts' ? uiFonts : mode === 'fonts' ? fonts : null
   // Fonts are tried on as they're highlighted; the one from before comes back unless one is picked.
-  const [fontsFor, setFontsFor] = useState({ mode, saved: S.get().settings.fontFamily })
-  if (fontsFor.mode !== mode) setFontsFor({ mode, saved: S.get().settings.fontFamily })
+  const [fontsFor, setFontsFor] = useState({ mode, saved: S.get().settings[fontKey] })
+  if (fontsFor.mode !== mode) setFontsFor({ mode, saved: S.get().settings[fontKey] })
   const savedFont = fontsFor.saved
   const pickedFont = useRef(false)
 
   useEffect(() => {
-    if (mode !== 'fonts') return
+    if (mode !== 'fonts' && mode !== 'uiFonts') return
     pickedFont.current = false
     return () => {
-      if (!pickedFont.current) S.set({ settings: { ...S.get().settings, fontFamily: savedFont } })
+      if (!pickedFont.current) S.set({ settings: { ...S.get().settings, [fontKey]: savedFont } })
     }
-  }, [mode, savedFont])
+  }, [mode, fontKey, savedFont])
 
   useEffect(() => {
     setCapturing(capture !== null)
@@ -84,7 +86,7 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
       setCursor(0)
       setMoved(false)
     }
-    if (mode === 'themes' || mode === 'icons' || mode === 'fonts') {
+    if (mode === 'themes' || mode === 'icons' || fontList) {
       setText('')
       const settings = S.get().settings
       setCursor(
@@ -92,22 +94,22 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
           0,
           mode === 'themes'
             ? themes.findIndex((t) => t.name === settings.theme)
-            : mode === 'fonts'
-              ? fonts.findIndex((f) => f.family === settings.fontFamily)
+            : fontList
+              ? fontList.findIndex((f) => f.family === settings[fontKey])
               : iconPacks.findIndex((p) => p.id === (settings.iconPack ?? 'material')),
         ),
       )
       setMoved(false)
     }
-  }, [mode])
+  }, [mode, fontList, fontKey])
 
   const items = useMemo((): Item[] => {
     const word = text.trim().split(/\s+/)[0] ?? ''
     const source: Omit<Item, 'positions'>[] =
       mode === 'themes'
         ? themes.map((t) => ({ name: t.name, desc: t.name === savedTheme ? 'current' : '' }))
-        : mode === 'fonts'
-          ? fonts.map((f) => ({ name: f.name, desc: f.family === savedFont ? 'current' : '' }))
+        : fontList
+          ? fontList.map((f) => ({ name: f.name, desc: f.family === savedFont ? 'current' : '' }))
           : mode === 'icons'
           ? iconPacks.map((p) => ({ name: p.name, desc: p.id === savedPack ? `${p.desc}, current` : p.desc }))
           : mode === 'keys'
@@ -123,17 +125,17 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
     }
     scored.sort((a, b) => b.score - a.score)
     return scored.map((x) => x.item)
-  }, [text, mode, savedTheme, savedPack, savedFont, changedKeys])
+  }, [text, mode, fontList, savedTheme, savedPack, savedFont, changedKeys])
 
   const index = Math.min(cursor, Math.max(0, items.length - 1))
   const highlighted = items[index]
 
   useEffect(() => {
     if (mode === 'themes' && highlighted) S.set({ previewTheme: highlighted.name })
-    const font = mode === 'fonts' && highlighted ? fonts.find((f) => f.name === highlighted.name) : undefined
-    if (font) S.set({ settings: { ...S.get().settings, fontFamily: font.family } })
+    const font = highlighted && fontList?.find((f) => f.name === highlighted.name)
+    if (font) S.set({ settings: { ...S.get().settings, [fontKey]: font.family } })
     if (mode === 'icons' && highlighted) S.set({ previewIcons: iconPacks.find((p) => p.name === highlighted.name)?.id ?? null })
-  }, [mode, highlighted])
+  }, [mode, fontList, fontKey, highlighted])
 
   useEffect(() => {
     list.current?.querySelector('.row.selected')?.scrollIntoView({ block: 'nearest' })
@@ -151,11 +153,11 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
       input.current?.focus()
       return
     }
-    if (mode === 'fonts') {
-      const font = fonts.find((f) => f.name === item?.name)
+    if (fontList) {
+      const font = fontList.find((f) => f.name === item?.name)
       if (font) {
         pickedFont.current = true
-        updateSettings({ fontFamily: font.family })
+        updateSettings({ [fontKey]: font.family })
       }
       close()
       return
@@ -227,7 +229,7 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
     <>
       <div className="floating-backdrop" onMouseDown={close} />
       <div className="floating" style={{ top: '8%', left: '50%', transform: 'translateX(-50%)', width: 'min(760px, 86vw)', height: 'max(min(60vh, 100vh - 16%), 300px)' }}>
-        <div className="floating-title"> {mode === 'themes' ? 'Themes' : mode === 'icons' ? 'Icon Packs' : mode === 'fonts' ? 'Fonts' : mode === 'keys' ? 'Keyboard Shortcuts' : 'Commands'}</div>
+        <div className="floating-title"> {mode === 'themes' ? 'Themes' : mode === 'icons' ? 'Icon Packs' : mode === 'fonts' ? 'Fonts' : mode === 'uiFonts' ? 'Interface Fonts' : mode === 'keys' ? 'Keyboard Shortcuts' : 'Commands'}</div>
         <div className="prompt">
           <span className="caret">{'>'}</span>
           <input
@@ -251,7 +253,7 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
             onKeyDown={onKeyDown}
           />
           <span className="count">
-            {items.length} / {mode === 'themes' ? themes.length : mode === 'icons' ? iconPacks.length : mode === 'fonts' ? fonts.length : mode === 'keys' ? commands.length : commands.filter((c) => !c.hidden).length}
+            {items.length} / {mode === 'themes' ? themes.length : mode === 'icons' ? iconPacks.length : fontList ? fontList.length : mode === 'keys' ? commands.length : commands.filter((c) => !c.hidden).length}
           </span>
         </div>
         <div className="results" ref={list}>
@@ -273,7 +275,7 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
               onClick={() => run(i)}
             >
               {(it.keys || mode === 'keys') && <span className="key">{capture === it.name ? '…' : keyLabel(it.keys ?? '') || (mode === 'keys' ? '—' : '')}</span>}
-              <span style={mode === 'fonts' ? { fontFamily: fonts.find((f) => f.name === it.name)?.family } : undefined}>
+              <span style={fontList ? { fontFamily: fontList.find((f) => f.name === it.name)?.family } : undefined}>
                 <Highlighted text={it.name} positions={it.positions} />
               </span>
               {it.desc && <span className="desc">{'  '}{it.desc}</span>}

@@ -14,6 +14,7 @@ export default function App() {
   const [ready, setReady] = useState(false)
   const workspace = S.useStore((s) => S.isConnected(s.conn) || s.projects.length > 1)
   const fontFamily = S.useStore((s) => s.settings.fontFamily)
+  const uiFont = S.useStore((s) => s.settings.uiFont)
 
   useEffect(() => {
     let live = true
@@ -47,7 +48,8 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.style.setProperty('--mono', fontFamily)
-  }, [fontFamily])
+    document.documentElement.style.setProperty('--sans', uiFont)
+  }, [fontFamily, uiFont])
 
   if (!ready) return null
   return (

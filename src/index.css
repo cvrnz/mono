@@ -68,7 +68,6 @@ button:disabled,
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: var(--mono);
 }
 
 .tabbar {
@@ -195,7 +194,6 @@ button:disabled,
   position: absolute;
   inset: 0;
   background: var(--bg);
-  font-family: var(--sans);
 }
 
 .main {
@@ -376,7 +374,6 @@ button:disabled,
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
-  font-family: var(--mono);
   overflow: hidden;
 }
 .floating-title {
@@ -458,7 +455,6 @@ button:disabled,
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: var(--mono);
 }
 .explorer-body {
   display: flex;
@@ -561,7 +557,6 @@ button:disabled,
   border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
-  font-family: var(--mono);
 }
 .drag-ghost .icon {
   color: var(--dim);
@@ -591,7 +586,6 @@ button:disabled,
   border-top: 1px solid var(--separator);
   white-space: pre;
   flex: none;
-  font-family: var(--mono);
 }
 .hints-keys {
   flex: 1;
@@ -772,7 +766,6 @@ button:disabled,
 .editor-note {
   color: var(--dim);
   padding: 2em;
-  font-family: var(--mono);
   white-space: pre-wrap;
 }
 .vim-status {
@@ -897,7 +890,6 @@ button:disabled,
 }
 .pick .name {
   color: var(--fg);
-  font-family: var(--mono);
   font-size: 15px;
   white-space: nowrap;
   flex: none;
@@ -927,7 +919,6 @@ button:disabled,
 .connect .error {
   color: var(--red);
   white-space: pre-wrap;
-  font-family: var(--mono);
   font-size: 14px;
   background: color-mix(in srgb, var(--red) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
@@ -957,7 +948,7 @@ button:disabled,
   color: var(--fg);
   border-radius: 8px;
   padding: 7px 10px;
-  font: 15px var(--mono);
+  font: 15px var(--sans);
   outline: none;
 }
 .connect .text-input:focus {
@@ -1002,7 +993,6 @@ button:disabled,
   display: flex;
   align-items: center;
   gap: 12px;
-  font-family: var(--sans);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   max-width: 80%;
 }
@@ -1032,7 +1022,6 @@ button:disabled,
   border-radius: 6px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   white-space: pre-wrap;
-  font-family: var(--mono);
   font-size: 14px;
   user-select: text;
   cursor: pointer;
@@ -1051,7 +1040,7 @@ button:disabled,
   color: var(--fg);
   border-radius: 8px;
   padding: 7px 10px;
-  font: 16px var(--mono);
+  font: 16px var(--sans);
   outline: none;
 }
 .dialog-input:focus {
@@ -1148,7 +1137,6 @@ button:disabled,
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: var(--mono);
 }
 .sql-body {
   display: flex;
@@ -1240,7 +1228,6 @@ button:disabled,
   gap: 8px;
   padding: 4px 1ch;
   flex: none;
-  font-family: var(--sans);
   font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
@@ -1388,7 +1375,6 @@ button:disabled,
   z-index: 5;
   background: var(--bg);
   display: block;
-  font-family: var(--sans);
 }
 .sql-form-inner {
   width: min(640px, 100% - 48px);
@@ -1507,7 +1493,6 @@ button:disabled,
   border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-  font-family: var(--mono);
 }
 .term-find input {
   width: 22ch;
@@ -1707,7 +1692,6 @@ button:disabled,
   padding: 0 1ch;
   border-bottom: 1px solid var(--separator);
   white-space: nowrap;
-  font-family: var(--mono);
 }
 .run-view-head .run-dot {
   margin: 0 2px;
@@ -1902,7 +1886,6 @@ button:disabled,
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 2px;
-  font-family: var(--mono);
   font-size: 12px;
 }
 .image-tools button {
@@ -1930,7 +1913,6 @@ button:disabled,
   flex: 1;
   overflow: auto;
   outline: none;
-  font-family: var(--mono);
   font-size: 13px;
 }
 .sheet-scroll table {
@@ -1983,7 +1965,6 @@ button:disabled,
   gap: 2px;
   border-top: 1px solid var(--border);
   padding: 2px 4px;
-  font-family: var(--mono);
   font-size: 12px;
   white-space: nowrap;
   overflow-x: auto;
@@ -2014,6 +1995,5 @@ button:disabled,
   inset: 0;
   color: var(--dim);
   padding: 2em;
-  font-family: var(--mono);
   pointer-events: none;
 }

@@ -1,6 +1,6 @@
 import { createContext, useContext, useSyncExternalStore } from 'react'
 import type { Change, Hello } from './agent'
-import { defaultFont } from './fonts'
+import { defaultFont, defaultUiFont } from './fonts'
 
 export type Target = { kind: 'local'; folder: string } | { kind: 'docker'; container: string; folder: string }
 
@@ -21,6 +21,8 @@ export type Settings = {
   gitDepth: number
   fontSize: number
   fontFamily: string
+  /** The font of everything but files, terminals and the welcome page. */
+  uiFont: string
   /** How much the whole window is zoomed, 1 for none. */
   zoom?: number
   dockerPath?: string
@@ -66,6 +68,7 @@ export const defaultSettings: Settings = {
   gitDepth: 4,
   fontSize: 16,
   fontFamily: defaultFont,
+  uiFont: defaultUiFont,
   recents: [],
 }
 
@@ -167,7 +170,7 @@ export type State = {
   conn: Connection
   tabs: Tab[]
   active: string | null
-  palette: null | { mode: 'commands' | 'themes' | 'icons' | 'fonts' | 'keys'; text?: string }
+  palette: null | { mode: 'commands' | 'themes' | 'icons' | 'fonts' | 'uiFonts' | 'keys'; text?: string }
   status: Record<string, PaneStatus>
   previewTheme: string | null
   previewIcons: string | null

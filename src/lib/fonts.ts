@@ -20,5 +20,23 @@ export const fonts: { name: string; family: string }[] = [
 
 export const defaultFont = fonts[0].family
 
+const SANS_FALLBACK = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+
+/** The fonts everything else can be set in (the InterfaceFonts command): the computer's own, or one from Google Fonts (index.html). */
+export const uiFonts: { name: string; family: string }[] = [
+  { name: 'System', family: SANS_FALLBACK },
+  { name: 'Inter', family: `'Inter', ${SANS_FALLBACK}` },
+  { name: 'Geist', family: `'Geist', ${SANS_FALLBACK}` },
+  { name: 'IBM Plex Sans', family: `'IBM Plex Sans', ${SANS_FALLBACK}` },
+  { name: 'DM Sans', family: `'DM Sans', ${SANS_FALLBACK}` },
+  { name: 'Figtree', family: `'Figtree', ${SANS_FALLBACK}` },
+  { name: 'Manrope', family: `'Manrope', ${SANS_FALLBACK}` },
+  { name: 'Source Sans 3', family: `'Source Sans 3', ${SANS_FALLBACK}` },
+  { name: 'Work Sans', family: `'Work Sans', ${SANS_FALLBACK}` },
+  { name: 'Outfit', family: `'Outfit', ${SANS_FALLBACK}` },
+]
+
+export const defaultUiFont = uiFonts[0].family
+
 /** The font Mono used to start in, so settings saved with it move to the new default. */
 export const oldDefaultFont = '"JetBrainsMono Nerd Font", "JetBrains Mono", "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace'
