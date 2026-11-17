@@ -1,5 +1,6 @@
+import { agentFor } from './agent'
 import { errorText } from './bridge'
-import { isInside, join } from './paths'
+import { isAbsolute, isInside, join } from './paths'
 import { updateSettings } from './settings'
 import * as S from './store'
 import { openShell, type Shell } from './terminals'
@@ -61,17 +62,26 @@ function finish(id: string, state: S.RunState, code?: number) {
   l?.shell?.close()
 }
 
+/** Where a configuration runs: its folder from the project root, ~/… from home, or a full path. */
+export function folderOf(config: S.RunConfig, root: string, home: string): string {
+  const dir = config.cwd?.trim()
+  if (!dir) return root
+  if (dir === '~') return home
+  if (dir.startsWith('~/')) return join(home, dir.slice(2))
+  return isAbsolute(dir) ? dir : join(root, dir)
+}
+
 export async function start(config: S.RunConfig, project = S.get().project): Promise<string | null> {
   const p = S.project(project)
   if (!p || !S.isConnected(p.conn)) return null
-  const root = p.conn.hello.root
-  const dir = config.cwd?.trim()
-  const cwd = !dir ? root : dir.startsWith('/') ? dir : join(root, dir)
+  const { root, home } = p.conn.hello
+  const cwd = folderOf(config, root, home)
   const id = S.newId('run')
   live.set(id, { chunks: [], size: 0, listeners: new Set(), config })
   S.set((s) => ({ runs: [{ id, project, name: config.name, command: config.command, cwd, state: 'starting', started: Date.now() }, ...s.runs] }))
   say(id, `\x1b[2m${isInside(cwd, root) && cwd !== root ? cwd.slice(root.length + 1) + ' ' : ''}$ ${config.command}\x1b[0m\r\n`)
   try {
+    if (!(await agentFor(project).stat(cwd)).dir) throw new Error(`There's no folder ${cwd}`)
     const shell = await openShell(
       project,
       120,
