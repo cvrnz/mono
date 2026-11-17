@@ -1,6 +1,8 @@
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useEffect, useRef, useState } from 'react'
 import { confirm, toast } from '../lib/dialogs'
 import { register } from '../lib/panes'
+import { pretty } from '../lib/paths'
 import * as R from '../lib/runs'
 import * as S from '../lib/store'
 import { useHints } from './Hints'
@@ -38,6 +40,7 @@ export default function RunPane({ tab, active }: Props) {
   const list = S.useStore((s) => R.configs(s))
   const runs = S.useStore((s) => s.runs).filter((r) => r.project === project)
   const viewing = S.useStore((s) => s.runView)
+  const conn = S.useStore((s) => s.conn)
   const [form, setForm] = useState<Form | null>(null)
   const [cursor, setCursor] = useState(0)
   const [, tick] = useState(0)
@@ -87,6 +90,13 @@ export default function RunPane({ tab, active }: Props) {
     setForm(null)
     side.current?.focus()
     if (andRun) run(config)
+  }
+
+  const pickFolder = async (f: Form) => {
+    if (conn.state !== 'connected') return
+    const { root, home } = conn.hello
+    const dir = await openDialog({ directory: true, defaultPath: R.folderOf(f, root, home), title: 'Run in' }).catch(() => null)
+    if (dir) setForm((x) => x && { ...x, cwd: dir === root ? '' : pretty(dir, root, home) })
   }
 
   const choose = (r: Row | undefined) => {
@@ -143,8 +153,15 @@ export default function RunPane({ tab, active }: Props) {
       }}
     >
       <input autoFocus placeholder="Name" value={f.name} spellCheck={false} onChange={(e) => setForm({ ...f, name: e.target.value })} />
-      <input placeholder="Command, like bun run dev" value={f.command} spellCheck={false} onChange={(e) => setForm({ ...f, command: e.target.value })} />
-      <input placeholder="Folder (optional, from the project root)" value={f.cwd} spellCheck={false} onChange={(e) => setForm({ ...f, cwd: e.target.value })} />
+      <input placeholder="Command, like pnpm dev" value={f.command} spellCheck={false} onChange={(e) => setForm({ ...f, command: e.target.value })} />
+      <div className="run-form-folder">
+        <input placeholder="Folder (optional, from the project root)" value={f.cwd} spellCheck={false} onChange={(e) => setForm({ ...f, cwd: e.target.value })} />
+        {conn.state === 'connected' && conn.target.kind === 'local' && (
+          <span className="run-btn" title="Choose a folder" onMouseDown={(e) => (e.preventDefault(), pickFolder(f))}>
+            Choose…
+          </span>
+        )}
+      </div>
       <div className="run-form-buttons">
         <span className="run-btn primary" onMouseDown={(e) => (e.preventDefault(), save(f, true))}>
           Save and run

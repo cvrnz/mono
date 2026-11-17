@@ -1688,6 +1688,15 @@ kbd:last-of-type {
 .run-form input:focus {
   border-color: var(--blue);
 }
+.run-form-folder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.run-form-folder input {
+  flex: 1;
+  min-width: 0;
+}
 .run-form-buttons {
   display: flex;
   gap: 6px;
