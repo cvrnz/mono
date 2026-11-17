@@ -29,6 +29,7 @@ pub struct Config {
     pub file: Option<String>,
     pub ssl: Option<bool>,
     pub trust_cert: Option<bool>,
+    pub windows_auth: Option<bool>,
 }
 
 impl Config {

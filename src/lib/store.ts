@@ -95,6 +95,7 @@ export type SqlConnection = {
   file?: string
   ssl?: boolean
   trustCert?: boolean
+  windowsAuth?: boolean
 }
 
 export type Splits = { dir: 'below' | 'right'; panes: string[] }
@@ -341,6 +342,7 @@ export function focusedPane(tab: Tab): string {
 }
 
 export const isMac = () => state.platform === 'darwin'
+export const isWindows = () => state.platform === 'windows'
 
 export function connected(): Hello | null {
   const c = state.conn

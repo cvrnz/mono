@@ -565,6 +565,7 @@ function ConnectionForm({ initial, was, error, busy, onConnect, onSave, onDelete
       out.database = c.database?.trim() || undefined
       if (c.ssl) out.ssl = true
       if (c.engine === 'mssql' && c.trustCert === false) out.trustCert = false
+      if (c.engine === 'mssql' && c.windowsAuth) out.windowsAuth = true
     }
     return out
   }
@@ -585,6 +586,7 @@ function ConnectionForm({ initial, was, error, busy, onConnect, onSave, onDelete
       onChange={(e) => set({ [key]: e.target.value })}
     />
   )
+  const windowsAuth = c.engine === 'mssql' && Boolean(c.windowsAuth)
   const ready = Boolean(c.name.trim()) && (c.engine === 'sqlite' ? Boolean(c.file?.trim()) : true)
   return (
     <div
@@ -638,8 +640,15 @@ function ConnectionForm({ initial, was, error, busy, onConnect, onSave, onDelete
                 1,
               )}
             </div>
+            {c.engine === 'mssql' && (S.isWindows() || c.windowsAuth) && (
+              <div className="sql-checks">
+                <label>
+                  <input type="checkbox" checked={windowsAuth} onChange={(e) => set({ windowsAuth: e.target.checked })} /> Windows authentication
+                </label>
+              </div>
+            )}
             <div className="row-fields">
-              {field('User', text('user'))}
+              {field(windowsAuth ? 'User (DOMAIN\\user)' : 'User', text('user', windowsAuth ? 'You, as signed in to Windows' : ''))}
               {field('Password', text('password', '', 'password'))}
             </div>
             <div className="row-fields">{field('Database', text('database', c.engine === 'postgres' ? 'postgres' : ''))}</div>

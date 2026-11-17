@@ -50,6 +50,26 @@ async fn connect(config: &tiberius::Config) -> Result<Conn, String> {
     tokio::time::timeout(Duration::from_secs(15), attempt).await.map_err(|_| "timed out connecting".to_string())?
 }
 
+#[cfg(windows)]
+fn auth(c: &Config) -> Result<AuthMethod, String> {
+    if !c.windows_auth.unwrap_or(false) {
+        return Ok(AuthMethod::sql_server(c.user().unwrap_or_default(), c.password().unwrap_or_default()));
+    }
+    Ok(match c.user() {
+        Some(user) => AuthMethod::windows(user, c.password().unwrap_or_default()),
+        None => AuthMethod::Integrated,
+    })
+}
+
+#[cfg(not(windows))]
+fn auth(c: &Config) -> Result<AuthMethod, String> {
+    let user = c.user().unwrap_or_default();
+    if c.windows_auth.unwrap_or(false) || user.contains('\\') {
+        return Err("Windows authentication only works in Mono on Windows; use a SQL Server login".into());
+    }
+    Ok(AuthMethod::sql_server(user, c.password().unwrap_or_default()))
+}
+
 fn date<'a, T: FromSql<'a>>(data: &'a ColumnData<'static>, show: impl Fn(T) -> String) -> Cell {
     match T::from_sql(data) {
         Ok(Some(v)) => text(&show(v)),
@@ -124,11 +144,7 @@ impl Ms {
         if let Some(d) = c.database() {
             config.database(d);
         }
-        let user = c.user().unwrap_or_default();
-        if user.contains('\\') {
-            return Err("signing in as DOMAIN\\user (Windows authentication) isn't supported; use a SQL Server login".into());
-        }
-        config.authentication(AuthMethod::sql_server(user, c.password().unwrap_or_default()));
+        config.authentication(auth(c)?);
         config.encryption(if c.ssl() { EncryptionLevel::Required } else { EncryptionLevel::NotSupported });
         if c.trust_cert.unwrap_or(true) {
             config.trust_cert();
