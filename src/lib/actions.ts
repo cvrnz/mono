@@ -14,7 +14,9 @@ export function root(): string {
 
 function insertTab(tab: S.Tab) {
   S.set((s) => {
-    const tabs = [...s.tabs]
+    const mine = s.tabs.filter((t) => !S.isFixed(t))
+    const lone = mine.length === 1 && mine[0].kind === 'welcome' && !mine[0].splits ? mine[0].id : null
+    const tabs = s.tabs.filter((t) => t.id !== lone)
     const fixed = tabs.filter(S.isFixed).length
     const i = tabs.findIndex((t) => t.id === s.active)
     tabs.splice(Math.max(i + 1, fixed), 0, tab)
