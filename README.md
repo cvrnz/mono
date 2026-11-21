@@ -146,14 +146,14 @@ button; open files and unsaved changes stay, and terminals start a new shell whe
 
 ## Building
 
-Needs Bun and Rust (rustup). The container helper is cross-compiled for Linux
+Needs Node, pnpm and Rust (rustup). The container helper is cross-compiled for Linux
 (`aarch64-unknown-linux-musl` and `x86_64-unknown-linux-musl`, linked with `rust-lld`, which
-comes with Rust); `bun run agent` adds the targets if they're missing.
+comes with Rust); `pnpm agent` adds the targets if they're missing.
 
 ```sh
-bun install
-bun run app      # run in development
-bun run bundle   # build Mono.app and a .dmg into target/release/bundle
+pnpm install
+pnpm app      # run in development
+pnpm bundle   # build Mono.app and a .dmg into target/release/bundle
 ```
 
 The app finds `docker`, `git` and your shell's tools through your login shell's PATH, so it
@@ -163,7 +163,7 @@ the app and choose Open.
 Checks:
 
 ```sh
-bun run build && bun run lint
+pnpm build && pnpm lint
 cargo test --workspace
 ```
 

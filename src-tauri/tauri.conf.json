@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "dev.mono.app",
   "build": {
-    "beforeDevCommand": "bun run agent && bun run dev",
+    "beforeDevCommand": "pnpm agent && pnpm dev",
     "devUrl": "http://127.0.0.1:9245",
-    "beforeBuildCommand": "bun run agent && bun run build",
+    "beforeBuildCommand": "pnpm agent && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
