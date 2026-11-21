@@ -1,12 +1,4 @@
-import { useEffect } from 'react'
 import { shortcut } from '../lib/commands'
-import * as S from '../lib/store'
-
-export function useHints(id: string, items: string[]) {
-  const key = items.join('\n')
-  useEffect(() => S.setHints(id, key.split('\n')), [id, key])
-  useEffect(() => () => S.setHints(id, null), [id])
-}
 
 const named = /^(Enter|Esc|Tab|Space|Home|End|Backspace|Delete)$/
 const modified = /^(Shift|Alt|Ctrl|Cmd)\+|^[⌘⌥⌃⇧]/

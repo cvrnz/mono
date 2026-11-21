@@ -7,7 +7,7 @@ import { register } from '../lib/panes'
 import { basename, dirname, join } from '../lib/paths'
 import * as S from '../lib/store'
 import FileIcon from './FileIcon'
-import { useHints } from './Hints'
+import { useHints } from '../lib/hints'
 
 type Kind = S.SearchKind
 type Agent = ReturnType<typeof agentFor>
@@ -86,15 +86,16 @@ function Search({ tab, active, root }: Props & { root: string }) {
   }
 
   const ask = tab.ask
-  const asked = useRef(ask?.n)
-  useEffect(() => {
-    if (!ask || ask.n === asked.current) return
-    asked.current = ask.n
+  const [asked, setAsked] = useState(ask?.n)
+  if (ask && ask.n !== asked) {
+    setAsked(ask.n)
     setKind(ask.kind)
     if (ask.text) setText(ask.text)
     reset()
-    requestAnimationFrame(() => input.current?.select())
-  }, [ask])
+  }
+  useEffect(() => {
+    if (asked !== undefined) requestAnimationFrame(() => input.current?.select())
+  }, [asked])
 
   useEffect(
     () =>
@@ -126,11 +127,7 @@ function Search({ tab, active, root }: Props & { root: string }) {
   useEffect(() => {
     if (kind !== 'text') return
     const q = text
-    if (!q) {
-      setMatches([])
-      setError('')
-      return
-    }
+    if (!q) return
     let stale = false
     const timer = setTimeout(() => {
       agent.grep(root, q, { case: Boolean(opts.case), word: opts.word, regex: opts.regex }).then(
@@ -280,6 +277,10 @@ function Search({ tab, active, root }: Props & { root: string }) {
             onChange={(e) => {
               setText(e.target.value)
               setCursor(0)
+              if (!e.target.value) {
+                setMatches([])
+                setError('')
+              }
             }}
             onKeyDown={onKeyDown}
           />

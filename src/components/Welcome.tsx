@@ -2,14 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { newFileHere } from '../lib/actions'
 import { shortcut } from '../lib/commands'
 import { register } from '../lib/panes'
-import { currentTheme } from '../lib/settings'
 import * as S from '../lib/store'
+import { themeNamed } from '../lib/themes'
 import { type Cell, type Picked, pick } from '../lib/ascii'
 
 const tickMs = 60
 
-function palette(): string[] {
-  const p = currentTheme()
+function palette(theme: string): string[] {
+  const p = themeNamed(theme)
   return [p.red, p.orange, p.yellow, p.green, p.cyan, p.blue, p.purple]
 }
 
@@ -32,27 +32,24 @@ export default function Welcome({ id, active }: { id: string; active: boolean })
   const [tick, setTick] = useState(0)
   const fontSize = S.useStore((s) => s.settings.fontSize)
   const themeName = S.useStore((s) => s.previewTheme ?? s.settings.theme)
-  const platform = S.useStore((s) => s.platform)
-  const keys = S.useStore((s) => s.settings.keys)
+  S.useStore((s) => s.platform)
+  S.useStore((s) => s.settings.keys)
 
-  const items = useMemo(
-    () => [
-      ['Explorer', shortcut('Explorer')],
-      ['Find in this file', shortcut('Find')],
-      ['Search files and text', shortcut('Search')],
-      ['Terminal', shortcut('Terminal')],
-      ['SQL', shortcut('Sql')],
-      ['Split terminal', shortcut('Split')],
-      ['New tab', shortcut('New')],
-      ['Switch tabs', `${shortcut('PreviousTab')}  ${shortcut('NextTab')}`],
-      ['Switch projects', `${shortcut('NextProject')}  ${shortcut('Project1')}  ${shortcut('Project2')}  …`],
-      ['Git', shortcut('Git')],
-      ['Run', shortcut('Run')],
-      ['Close', shortcut('Close')],
-      ['Command palette', shortcut('Palette')],
-    ].filter(([, k]) => k.trim()),
-    [platform, keys],
-  )
+  const items = [
+    ['Explorer', shortcut('Explorer')],
+    ['Find in this file', shortcut('Find')],
+    ['Search files and text', shortcut('Search')],
+    ['Terminal', shortcut('Terminal')],
+    ['SQL', shortcut('Sql')],
+    ['Split terminal', shortcut('Split')],
+    ['New tab', shortcut('New')],
+    ['Switch tabs', `${shortcut('PreviousTab')}  ${shortcut('NextTab')}`],
+    ['Switch projects', `${shortcut('NextProject')}  ${shortcut('Project1')}  ${shortcut('Project2')}  …`],
+    ['Git', shortcut('Git')],
+    ['Run', shortcut('Run')],
+    ['Close', shortcut('Close')],
+    ['Command palette', shortcut('Palette')],
+  ].filter(([, k]) => k.trim())
 
   const below = 6 + items.length * 2 - 1 + 5
   const area = (() => {
@@ -74,12 +71,10 @@ export default function Welcome({ id, active }: { id: string; active: boolean })
     return () => ro.disconnect()
   }, [fontSize])
 
-  useEffect(() => {
-    if (area > 0 && (!art || art.piece.height > area || art.piece.width > maxWidth)) {
-      setArt(pick(maxWidth, area))
-      setTick(0)
-    }
-  }, [area, maxWidth, art])
+  if (area > 0 && (!art || art.piece.height > area || art.piece.width > maxWidth)) {
+    setArt(pick(maxWidth, area))
+    setTick(0)
+  }
 
   useEffect(() => {
     if (!active) return
@@ -114,7 +109,7 @@ export default function Welcome({ id, active }: { id: string; active: boolean })
     e.preventDefault()
   }
 
-  const colors = useMemo(() => palette(), [themeName])
+  const colors = useMemo(() => palette(themeName), [themeName])
   const lines = area > 0 && art ? art.piece.frame(tick, colors).map(runs) : []
 
   const lh = '1.2em'

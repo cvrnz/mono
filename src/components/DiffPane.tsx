@@ -7,12 +7,6 @@ import { register } from '../lib/panes'
 import { basename } from '../lib/paths'
 import * as S from '../lib/store'
 
-export function diffLabel(tab: S.DiffTab): string {
-  const c = tab.change
-  const what = c.status === 'D' ? 'Deleted' : c.status === 'A' || c.status === 'U' ? 'Untracked' : 'Working Tree'
-  return `${basename(c.path)} (${what})`
-}
-
 export default function DiffPane({ tab, active }: { tab: S.DiffTab; active: boolean }) {
   const host = useRef<HTMLDivElement>(null)
   const diffRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null)

@@ -7,7 +7,7 @@ import { register } from '../lib/panes'
 import { updateSettings } from '../lib/settings'
 import * as sql from '../lib/sql'
 import * as S from '../lib/store'
-import { useHints } from './Hints'
+import { useHints } from '../lib/hints'
 import Icon from './Icon'
 
 type SqlIconName = 'folder' | 'database' | sql.ObjectKind | 'column' | 'key'

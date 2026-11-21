@@ -5,7 +5,7 @@ import { register } from '../lib/panes'
 import { pretty } from '../lib/paths'
 import * as R from '../lib/runs'
 import * as S from '../lib/store'
-import { useHints } from './Hints'
+import { useHints } from '../lib/hints'
 import Icon from './Icon'
 
 type Props = { tab: S.RunTab; active: boolean }
@@ -43,13 +43,13 @@ export default function RunPane({ tab, active }: Props) {
   const conn = S.useStore((s) => s.conn)
   const [form, setForm] = useState<Form | null>(null)
   const [cursor, setCursor] = useState(0)
-  const [, tick] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
   const side = useRef<HTMLDivElement>(null)
 
   const anyLive = runs.some((r) => liveStates.includes(r.state))
   useEffect(() => {
     if (!anyLive || !active) return
-    const t = setInterval(() => tick((n) => n + 1), 1000)
+    const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
   }, [anyLive, active])
 
@@ -243,7 +243,7 @@ export default function RunPane({ tab, active }: Props) {
                 <Status run={x} />
                 <span className="name">{x.name}</span>
                 <span className="desc">
-                  {going ? since(Date.now() - x.started) : x.state === 'stopped' ? 'stopped' : x.state === 'failed' ? `exit ${x.code ?? '?'}` : 'done'}
+                  {going ? since(Math.max(0, now - x.started)) : x.state === 'stopped' ? 'stopped' : x.state === 'failed' ? `exit ${x.code ?? '?'}` : 'done'}
                 </span>
                 <span className="run-actions">
                   {going ? (

@@ -23,6 +23,11 @@ export default function SqlGrid({ set, autoFocus }: { set: ResultSet; autoFocus?
   const host = useRef<HTMLDivElement>(null)
   const [scroll, setScroll] = useState({ top: 0, height: 600 })
   const [sel, setSel] = useState({ r: 0, c: 0 })
+  const [selFor, setSelFor] = useState(set)
+  if (selFor !== set) {
+    setSelFor(set)
+    setSel({ r: 0, c: 0 })
+  }
 
   const cw = charWidth(fontFamily, size)
   const numWidth = Math.ceil(String(set.rows.length).length * cw) + 20
@@ -44,7 +49,6 @@ export default function SqlGrid({ set, autoFocus }: { set: ResultSet; autoFocus?
   }, [widths, numWidth])
   const total = numWidth + widths.reduce((a, b) => a + b, 0)
 
-  useEffect(() => setSel({ r: 0, c: 0 }), [set])
   useEffect(() => {
     if (autoFocus) host.current?.focus()
   }, [autoFocus, set])

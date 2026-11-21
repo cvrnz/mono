@@ -1,22 +1,5 @@
-import type { CSSProperties, RefObject } from 'react'
-import { updateSettings } from '../lib/settings'
-import * as S from '../lib/store'
-
-export type Side = keyof NonNullable<S.Settings['sideWidths']>
-
-export function useSideWidth(side: Side): number | undefined {
-  return S.useStore((s) => s.settings.sideWidths?.[side])
-}
-
-export function sideStyle(width: number | undefined): CSSProperties | undefined {
-  return width ? { width, minWidth: 0, maxWidth: 'none', flex: 'none' } : undefined
-}
-
-const setWidth = (side: Side, width: number | undefined) => {
-  const widths = { ...S.get().settings.sideWidths, [side]: width }
-  if (width === undefined) delete widths[side]
-  updateSettings({ sideWidths: widths })
-}
+import type { RefObject } from 'react'
+import { setSideWidth, type Side } from '../lib/sides'
 
 export default function SideSplitter({ side, target }: { side: Side; target: RefObject<HTMLElement | null> }) {
   const down = (e: React.MouseEvent) => {
@@ -34,7 +17,7 @@ export default function SideSplitter({ side, target }: { side: Side; target: Ref
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
       document.body.classList.remove('resizing-cols')
-      if (width) setWidth(side, width)
+      if (width) setSideWidth(side, width)
     }
     document.body.classList.add('resizing-cols')
     window.addEventListener('mousemove', onMove)
@@ -43,7 +26,7 @@ export default function SideSplitter({ side, target }: { side: Side; target: Ref
   const reset = () => {
     const el = target.current
     if (el) Object.assign(el.style, { width: '', minWidth: '', maxWidth: '', flex: '' })
-    setWidth(side, undefined)
+    setSideWidth(side, undefined)
   }
   return <div className="side-splitter" onMouseDown={down} onDoubleClick={reset} title="Drag to resize, double-click for the default width" />
 }

@@ -1,10 +1,10 @@
 import type { SearchAddon } from '@xterm/addon-search'
 import type { Terminal } from '@xterm/xterm'
-import { useEffect, useRef, useState } from 'react'
+import { type RefObject, useEffect, useRef, useState } from 'react'
 import { currentTheme } from '../lib/settings'
 import Icon from './Icon'
 
-type Props = { term: Terminal; search: SearchAddon; onClose: () => void }
+type Props = { term: RefObject<Terminal | null>; search: RefObject<SearchAddon | null>; onClose: () => void }
 
 function decorations() {
   const t = currentTheme()
@@ -20,29 +20,33 @@ export default function TermFind({ term, search, onClose }: Props) {
   useEffect(() => {
     input.current?.focus()
     input.current?.select()
-    const sub = search.onDidChangeResults(({ resultIndex, resultCount }) => setFound({ index: resultIndex, count: resultCount }))
+    const s = search.current
+    if (!s) return
+    const sub = s.onDidChangeResults(({ resultIndex, resultCount }) => setFound({ index: resultIndex, count: resultCount }))
     return () => {
       sub.dispose()
-      search.clearDecorations()
+      s.clearDecorations()
     }
   }, [search])
 
   const find = (q: string, back = false, incremental = false) => {
+    const s = search.current
+    if (!s) return
     if (!q) {
-      search.clearDecorations()
+      s.clearDecorations()
       setFound(null)
       return
     }
     const opts = { incremental, decorations: decorations() }
-    if (back) search.findPrevious(q, opts)
-    else search.findNext(q, opts)
+    if (back) s.findPrevious(q, opts)
+    else s.findNext(q, opts)
   }
 
   const close = () => {
-    search.clearDecorations()
-    term.clearSelection()
+    search.current?.clearDecorations()
+    term.current?.clearSelection()
     onClose()
-    term.focus()
+    term.current?.focus()
   }
 
   return (

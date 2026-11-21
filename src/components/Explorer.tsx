@@ -1,5 +1,5 @@
 import { Menu } from '@tauri-apps/api/menu'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { agentFor, dropFiles, onAgent, type Entry } from '../lib/agent'
@@ -11,7 +11,7 @@ import { basename, dirname, isInside, join, pretty } from '../lib/paths'
 import { keyLabel } from '../lib/commands'
 import * as S from '../lib/store'
 import FileIcon from './FileIcon'
-import { useHints } from './Hints'
+import { useHints } from '../lib/hints'
 
 const neverShow = new Set(['.git', '.DS_Store'])
 
@@ -57,6 +57,14 @@ export default function Explorer(props: Props) {
   const hello = S.useProject((p) => (S.isConnected(p.conn) ? p.conn.hello : null))
   if (!hello) return null
   return <Tree key={hello.root} {...props} root={hello.root} home={hello.home} />
+}
+
+/** The folders between the root and a path to show, or null when there's nothing to open. */
+function dirsTo(path: string | null, root: string): string[] | null {
+  if (!path || !isInside(path, root) || path === root) return null
+  const dirs: string[] = []
+  for (let d = dirname(path); d !== root && isInside(d, root); d = dirname(d)) dirs.push(d)
+  return dirs
 }
 
 function Tree({ tab, active, root, home }: Props & { root: string; home: string }) {
@@ -126,21 +134,27 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
   }, [changed, root])
   useEffect(() => {
     if (!active) return
+    // oxlint-disable-next-line react/set-state-in-effect -- loads the changes; state is set when they arrive
     loadChanges()
     const timer = setInterval(() => document.visibilityState === 'visible' && loadChanges(), 5000)
     return () => clearInterval(timer)
   }, [active, loadChanges])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- loads the folder; state is set when it arrives
     load(root)
   }, [root, load])
 
+  const [revealed, setRevealed] = useState<string | null>(null)
+  if (reveal !== revealed) {
+    setRevealed(reveal)
+    const dirs = dirsTo(reveal, root)
+    if (dirs) setExpanded((s) => (dirs.every((d) => s.has(d)) ? s : new Set([...s, root, ...dirs])))
+  }
+  const unloaded = useEffectEvent((dirs: string[]) => dirs.filter((d) => !children.has(d)))
   useEffect(() => {
-    if (!reveal || !isInside(reveal, root) || reveal === root) return
-    const dirs: string[] = []
-    for (let d = dirname(reveal); d !== root && isInside(d, root); d = dirname(d)) dirs.push(d)
-    setExpanded((s) => (dirs.every((d) => s.has(d)) ? s : new Set([...s, root, ...dirs])))
-    Promise.all(dirs.filter((d) => !children.has(d)).map(load)).then(() => select(reveal))
+    const dirs = dirsTo(reveal, root)
+    if (dirs) Promise.all(unloaded(dirs).map(load)).then(() => select(reveal!))
   }, [root, reveal, load, select])
 
   useEffect(() => register(tab.id, { focus: () => tree.current?.focus() }), [tab.id])
@@ -516,7 +530,9 @@ function Tree({ tab, active, root, home }: Props & { root: string; home: string 
     loadChanges()
   }
   const latest = useRef({ refresh, dirAt, dropIn, children })
-  latest.current = { refresh, dirAt, dropIn, children }
+  useEffect(() => {
+    latest.current = { refresh, dirAt, dropIn, children }
+  })
 
   useEffect(() => {
     const run = () => latest.current.refresh()

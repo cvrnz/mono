@@ -12,6 +12,21 @@ import { themes } from '../lib/themes'
 import FileIcon from './FileIcon'
 
 type Mode = 'commands' | 'themes' | 'icons' | 'fonts' | 'uiFonts' | 'keys'
+
+/** Where a list mode opens: on the current choice, with no text. Commands keep what was typed. */
+function startOf(mode: Mode): { text: string; cursor: number } | null {
+  const settings = S.get().settings
+  const list = mode === 'uiFonts' ? uiFonts : mode === 'fonts' ? fonts : null
+  if (mode === 'keys') return { text: '', cursor: 0 }
+  if (mode === 'commands') return null
+  const index =
+    mode === 'themes'
+      ? themes.findIndex((t) => t.name === settings.theme)
+      : list
+        ? list.findIndex((f) => f.family === settings[mode === 'uiFonts' ? 'uiFont' : 'fontFamily'])
+        : iconPacks.findIndex((p) => p.id === (settings.iconPack ?? 'material'))
+  return { text: '', cursor: Math.max(0, index) }
+}
 const samples = ['src/', 'index.ts', 'App.tsx', 'package.json', 'README.md', 'main.rs', 'app.py', 'style.css', 'index.html', 'logo.png', 'Dockerfile', '.gitignore']
 
 function IconSamples() {
@@ -45,8 +60,8 @@ function Highlighted({ text, positions }: { text: string; positions: number[] })
 }
 
 export default function CommandPalette({ mode, initial }: { mode: Mode; initial: string }) {
-  const [text, setText] = useState(initial)
-  const [cursor, setCursor] = useState(0)
+  const [text, setText] = useState(() => startOf(mode)?.text ?? initial)
+  const [cursor, setCursor] = useState(() => startOf(mode)?.cursor ?? 0)
   const [moved, setMoved] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const list = useRef<HTMLDivElement>(null)
@@ -58,7 +73,16 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
   const fontList = mode === 'uiFonts' ? uiFonts : mode === 'fonts' ? fonts : null
   // Fonts are tried on as they're highlighted; the one from before comes back unless one is picked.
   const [fontsFor, setFontsFor] = useState({ mode, saved: S.get().settings[fontKey] })
-  if (fontsFor.mode !== mode) setFontsFor({ mode, saved: S.get().settings[fontKey] })
+  if (fontsFor.mode !== mode) {
+    setFontsFor({ mode, saved: S.get().settings[fontKey] })
+    setCapture(null)
+    const start = startOf(mode)
+    if (start) {
+      setText(start.text)
+      setCursor(start.cursor)
+      setMoved(false)
+    }
+  }
   const savedFont = fontsFor.saved
   const pickedFont = useRef(false)
 
@@ -79,29 +103,6 @@ export default function CommandPalette({ mode, initial }: { mode: Mode; initial:
     input.current?.focus()
   }, [mode])
 
-  useEffect(() => {
-    setCapture(null)
-    if (mode === 'keys') {
-      setText('')
-      setCursor(0)
-      setMoved(false)
-    }
-    if (mode === 'themes' || mode === 'icons' || fontList) {
-      setText('')
-      const settings = S.get().settings
-      setCursor(
-        Math.max(
-          0,
-          mode === 'themes'
-            ? themes.findIndex((t) => t.name === settings.theme)
-            : fontList
-              ? fontList.findIndex((f) => f.family === settings[fontKey])
-              : iconPacks.findIndex((p) => p.id === (settings.iconPack ?? 'material')),
-        ),
-      )
-      setMoved(false)
-    }
-  }, [mode, fontList, fontKey])
 
   const items = useMemo((): Item[] => {
     const word = text.trim().split(/\s+/)[0] ?? ''

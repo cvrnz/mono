@@ -3,7 +3,7 @@ import { SearchAddon } from '@xterm/addon-search'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { closePane, closeTab } from '../lib/actions'
 import { copyText, errorText, pasteText } from '../lib/bridge'
 import { charWidth } from '../lib/metrics'
@@ -25,8 +25,8 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
   const [prompt, setPrompt] = useState<{ back: boolean } | null>(null)
   const [finding, setFinding] = useState(false)
   const searchRef = useRef<SearchAddon | null>(null)
-  const tabRef = useRef(tabId)
-  tabRef.current = tabId
+  const closeSelf = useEffectEvent(() => (id === tabId ? closeTab(id) : closePane(tabId, id)))
+  const [startCwd] = useState(cwd)
   const fontSize = S.useStore((s) => s.settings.fontSize)
   const fontFamily = S.useStore((s) => s.settings.fontFamily)
   const maxColumns = S.useStore((s) => s.settings.maxColumns)
@@ -82,7 +82,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
     }
 
     const restored = takeRestored(id)
-    let where = restored?.cwd ?? cwd
+    let where = restored?.cwd ?? startCwd
     if (restored?.text) {
       doFit()
       term.write(restored.text + '\x1b[0m\r\n\x1b[2m[Restored from the last session]\x1b[0m\r\n')
@@ -140,8 +140,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
 
     const onKey = () => {
       if (state === 'exited') {
-        if (id === tabRef.current) closeTab(id)
-        else closePane(tabRef.current, id)
+        closeSelf()
         return true
       }
       if (state === 'dead') {
@@ -244,7 +243,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
         return { status, procs, cwds }
       })
     }
-  }, [id])
+  }, [id, project, startCwd])
 
   useEffect(() => {
     const term = termRef.current
@@ -266,7 +265,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
   return (
     <div className={`pane-inner ${centered ? 'centered' : ''}`} style={centered ? { maxWidth: width } : undefined}>
       <div ref={host} className="term-host" />
-      {finding && termRef.current && searchRef.current && <TermFind term={termRef.current} search={searchRef.current} onClose={() => setFinding(false)} />}
+      {finding && <TermFind term={termRef} search={searchRef} onClose={() => setFinding(false)} />}
       {prompt && (
         <input
           className="term-search"

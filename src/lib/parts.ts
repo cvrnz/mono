@@ -1,12 +1,17 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export type Part = { name: string; focus(): void }
 
-export function useParts(initial: string) {
+export function useParts(initial: string, parts: Part[]) {
   const [part, setPart] = useState(initial)
   const list = useRef<Part[]>([])
+  useEffect(() => {
+    list.current = parts
+  })
   const current = useRef(part)
-  current.current = part
+  useEffect(() => {
+    current.current = part
+  }, [part])
   const [nav] = useState(() => ({
     step(dir: number): boolean {
       const l = list.current
@@ -21,5 +26,5 @@ export function useParts(initial: string) {
       ;(dir > 0 ? l[0] : l[l.length - 1])?.focus()
     },
   }))
-  return { part, setPart, list, current, nav }
+  return { part, setPart, nav }
 }

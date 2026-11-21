@@ -9,7 +9,7 @@ import { updateSettings } from '../lib/settings'
 import * as S from '../lib/store'
 import FileIcon from './FileIcon'
 import Icon from './Icon'
-import { useHints } from './Hints'
+import { useHints } from '../lib/hints'
 
 type Busy = { repo: string; verb: string; frame: number } | { repo: string; text: string; cls: string }
 type Item = { repo?: Repo; change?: Change; commit?: Commit; sync?: boolean }
@@ -56,6 +56,13 @@ function ago(seconds: number): string {
 
 const spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 const lastFetch = new Map<string, number>()
+const fetchedLately = (key: string) => Date.now() - (lastFetch.get(key) ?? 0) < 60000
+const markFetched = (key: string) => lastFetch.set(key, Date.now())
+
+function rootOf(project: string): string {
+  const c = S.project(project)?.conn
+  return c && S.isConnected(c) ? c.hello.root : '/'
+}
 
 export default function ScmPane({ id, active }: { id: string; active: boolean }) {
   const [repos, setRepos] = useState<Repo[] | null>(null)
@@ -69,18 +76,16 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
   const [busy, setBusy] = useState<Busy | null>(null)
   const side = useRef<HTMLDivElement>(null)
   const repoRef = useRef<Repo | null>(null)
-  repoRef.current = repo
+  useEffect(() => {
+    repoRef.current = repo
+  })
   const project = S.useProjectId()
   const agent = useMemo(() => agentFor(project), [project])
   const hello = S.useProject((p) => (S.isConnected(p.conn) ? p.conn.hello : null))
-  const rootPath = () => {
-    const c = S.project(project)?.conn
-    return c && S.isConnected(c) ? c.hello.root : '/'
-  }
   const gitDepth = S.useStore((s) => s.settings.gitDepth)
 
   const refresh = useCallback(async (pick?: (list: Repo[]) => Repo | undefined, quiet = false) => {
-    const root = rootPath()
+    const root = rootOf(project)
     let list: Repo[]
     try {
       list = await agent.repos([root], S.get().settings.gitDepth)
@@ -98,8 +103,8 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
       agent.log(current.path).then(setLog, () => setLog([]))
     }
     for (const r of list) {
-      if (!r.sync || Date.now() - (lastFetch.get(project + r.path) ?? 0) < 60000) continue
-      lastFetch.set(project + r.path, Date.now())
+      if (!r.sync || fetchedLately(project + r.path)) continue
+      markFetched(project + r.path)
       agent.fetch(r.path, r.name).then(
         (fresh) => {
           setRepos((rs) => rs?.map((x) => (x.path === fresh.path ? fresh : x)) ?? rs)
@@ -109,25 +114,30 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
       )
     }
     return { list, current }
-  }, [])
+  }, [agent, project])
 
   useEffect(() => {
-    const root = rootPath()
+    const root = rootOf(project)
+    // oxlint-disable-next-line react/set-state-in-effect -- loads the repos; state is set when they arrive
     refresh((list) => list.find((r) => isInside(root, r.path)) ?? (list.length === 1 ? list[0] : undefined)).then((res) => {
       if (res?.current) {
         setView('changes')
         setSel({ repos: repoTree(res.list).findIndex((e) => e.repo?.path === res.current!.path), changes: 0, log: 0 })
       }
     })
-  }, [refresh])
+  }, [project, refresh])
 
-  const shown = useRef({ root: hello?.root, gitDepth })
-  useEffect(() => {
-    if (shown.current.root === hello?.root && shown.current.gitDepth === gitDepth) return
-    shown.current = { root: hello?.root, gitDepth }
+  const [shown, setShown] = useState({ root: hello?.root, gitDepth })
+  if (shown.root !== hello?.root || shown.gitDepth !== gitDepth) {
+    setShown({ root: hello?.root, gitDepth })
     setRepos(null)
+  }
+  const seen = useRef(shown)
+  useEffect(() => {
+    if (seen.current === shown) return
+    seen.current = shown
     refresh()
-  }, [hello?.root, gitDepth, refresh])
+  }, [shown, refresh])
 
   useEffect(() => {
     if (!active) return
@@ -160,7 +170,7 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
   const repoRows = useMemo((): Row[] => {
     if (!repos) return [{ key: 'wait', node: <span className="dim">Looking for repos…</span> }]
     if (repos.length === 0) {
-      return [{ key: 'none', node: <span className="dim">{`No git repos in ${pretty(rootPath(), '', hello?.home ?? '')}`}</span> }]
+      return [{ key: 'none', node: <span className="dim">{`No git repos in ${pretty(rootOf(project), '', hello?.home ?? '')}`}</span> }]
     }
     return repoTree(repos).map((e) => {
       const r = e.repo
@@ -188,7 +198,7 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
         ),
       }
     })
-  }, [repos, repo, hello])
+  }, [repos, repo, hello, project])
 
   const changeRows = useMemo((): Row[] => {
     if (!repo) return [{ key: 'pick', node: <span className="dim">Pick a repo above</span> }]
@@ -318,7 +328,7 @@ export default function ScmPane({ id, active }: { id: string; active: boolean })
     let err: string | null = null
     try {
       await agent.sync(target.path)
-      lastFetch.set(project + target.path, Date.now())
+      markFetched(project + target.path)
     } catch (e) {
       err = errorText(e)
     }

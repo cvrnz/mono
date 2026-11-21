@@ -1,6 +1,6 @@
 import { Button, Spinner } from '@heroui/react'
 import { initVimMode, type VimAdapterInstance } from 'monaco-vim'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { errorText } from '../lib/bridge'
 import { toast } from '../lib/dialogs'
 import { monaco } from '../lib/monaco'
@@ -9,7 +9,7 @@ import { useParts } from '../lib/parts'
 import * as sql from '../lib/sql'
 import * as S from '../lib/store'
 import { setupVim } from '../lib/vim'
-import { useHints } from './Hints'
+import { useHints } from '../lib/hints'
 import SqlGrid from './SqlGrid'
 
 type Props = { tab: S.SqlTab; active: boolean }
@@ -47,14 +47,17 @@ export default function SqlPane({ tab, active }: Props) {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const modeRef = useRef('normal')
   const infoRef = useRef(info)
-  infoRef.current = info
   const runningRef = useRef(running)
-  runningRef.current = running
   const runRef = useRef<(text?: string, offset?: number) => void>(() => {})
   const outcomeRef = useRef(outcome)
-  outcomeRef.current = outcome
   const shownRef = useRef(shown)
-  shownRef.current = shown
+  useEffect(() => {
+    infoRef.current = info
+    runningRef.current = running
+    outcomeRef.current = outcome
+    shownRef.current = shown
+  })
+  const [initialText] = useState(tab.text ?? '')
 
   const status = useCallback(() => {
     const items: string[] = []
@@ -99,7 +102,7 @@ export default function SqlPane({ tab, active }: Props) {
       smoothScrolling: false,
     })
     const uri = monaco.Uri.from({ scheme: 'sql', path: `/${tab.id}.sql` })
-    const model = monaco.editor.createModel(tab.text ?? '', 'sql', uri)
+    const model = monaco.editor.createModel(initialText, 'sql', uri)
     editor.setModel(model)
     editorRef.current = editor
 
@@ -120,6 +123,7 @@ export default function SqlPane({ tab, active }: Props) {
       contextMenuOrder: 0,
       run: () => runRef.current(),
     })
+    // oxlint-disable-next-line react/set-state-in-effect -- the editor exists only once the effect has made it
     setLoaded(true)
     return () => {
       clearTimeout(timer)
@@ -134,7 +138,7 @@ export default function SqlPane({ tab, active }: Props) {
         return { status: st }
       })
     }
-  }, [tab.id])
+  }, [tab.id, initialText, status])
 
   useEffect(() => {
     const editor = editorRef.current
@@ -188,10 +192,12 @@ export default function SqlPane({ tab, active }: Props) {
     [id, tab.id],
   )
 
-  useEffect(() => {
+  const openSaved = useEffectEvent(() => {
     const c = S.get().settings.sqlConnections?.find((x) => x.name === tab.conn)
     if (c) open(c)
-  }, [])
+  })
+  // oxlint-disable-next-line react/set-state-in-effect -- connects to the saved connection when the tab opens
+  useEffect(() => openSaved(), [])
 
   /** Switches the tab to another saved connection. */
   const use = async (name: string) => {
@@ -255,7 +261,9 @@ export default function SqlPane({ tab, active }: Props) {
       setRunning(false)
     }
   }
-  runRef.current = run
+  useEffect(() => {
+    runRef.current = run
+  })
 
   const cancelRun = () => {
     sql.cancel(id).catch((err) => toast(errorText(err), 'error'))
@@ -279,8 +287,7 @@ export default function SqlPane({ tab, active }: Props) {
 
   useEffect(() => sql.onRequest(() => setAsked((n) => n + 1)), [])
 
-  useEffect(() => {
-    if (!loaded || !info || connecting) return
+  const takeRequest = useEffectEvent((info: sql.Info) => {
     const r = sql.takeRequest(tab.id)
     if (!r) return
     void (async () => {
@@ -294,6 +301,9 @@ export default function SqlPane({ tab, active }: Props) {
         if (i) run(sql.selectTop(i, sql.objectName(i, db, obj)))
       }
     })()
+  })
+  useEffect(() => {
+    if (loaded && info && !connecting) takeRequest(info)
   }, [asked, loaded, info, connecting])
 
   useEffect(() => {
@@ -301,12 +311,11 @@ export default function SqlPane({ tab, active }: Props) {
     requestAnimationFrame(() => editorRef.current?.focus())
   }, [active, loaded])
 
-  const { part, setPart, list: parts, nav } = useParts('editor')
   const results = useRef<HTMLDivElement>(null)
-  parts.current = [
+  const { part, setPart, nav } = useParts('editor', [
     { name: 'editor', focus: () => editorRef.current?.focus() },
     { name: 'results', focus: () => results.current?.querySelector<HTMLElement>('.sql-grid, .sql-messages')?.focus() },
-  ]
+  ])
 
   useEffect(() => register(tab.id, {
     focus: () => editorRef.current?.focus(),

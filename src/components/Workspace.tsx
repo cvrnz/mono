@@ -10,7 +10,7 @@ import RunPane from './RunPane'
 import RunView from './RunView'
 import ConnectScreen from './ConnectScreen'
 import CommitPane from './CommitPane'
-import DiffPane, { diffLabel } from './DiffPane'
+import DiffPane from './DiffPane'
 import Hints from './Hints'
 import EditorPane from './EditorPane'
 import ViewerPane from './ViewerPane'
@@ -21,12 +21,19 @@ import SqlPane from './SqlPane'
 import SqlSide from './SqlSide'
 import SearchPane from './SearchPane'
 import TerminalPane from './TerminalPane'
-import SideSplitter, { sideStyle, useSideWidth } from './SideSplitter'
+import SideSplitter from './SideSplitter'
+import { sideStyle, useSideWidth } from '../lib/sides'
 import TabIcon from './TabIcon'
 import Welcome from './Welcome'
 import { noDrag, windowDrag, windowMenu } from '../lib/window'
 
-export function tabLabel(tab: S.Tab): string {
+function diffLabel(tab: S.DiffTab): string {
+  const c = tab.change
+  const what = c.status === 'D' ? 'Deleted' : c.status === 'A' || c.status === 'U' ? 'Untracked' : 'Working Tree'
+  return `${basename(c.path)} (${what})`
+}
+
+function tabLabel(tab: S.Tab): string {
   const focused = S.focusedPane(tab)
   if (tab.kind === 'terminal' || focused !== tab.id) return S.get().procs[focused] || 'Terminal'
   switch (tab.kind) {
@@ -53,7 +60,7 @@ export function tabLabel(tab: S.Tab): string {
   }
 }
 
-export function projectLabel(p: S.Project): string {
+function projectLabel(p: S.Project): string {
   const c = p.conn
   if (c.state === 'idle') return 'New project'
   const t = c.target

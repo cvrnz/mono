@@ -55,6 +55,7 @@ export default function ConnectScreen() {
   }, [])
 
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- loads the containers; state is set when they arrive
     loadContainers()
   }, [loadContainers])
 

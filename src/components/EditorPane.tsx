@@ -28,6 +28,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
   const modeRef = useRef('normal')
   const savedVersion = useRef(0)
   const pathRef = useRef(tab.path)
+  const [opened] = useState(() => ({ path: tab.path, text: tab.text, line: tab.line, col: tab.col, len: tab.len }))
   const [note, setNote] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [text, setText] = useState('')
@@ -121,18 +122,18 @@ export default function EditorPane({ tab, active, centered }: Props) {
         if (t?.kind === 'file' && (t.dirty !== dirty || (dirty && t.preview))) S.updateTab(tab.id, dirty ? { dirty, preview: false } : { dirty })
         status()
       })
-      if (tab.line) goTo(tab.line, tab.col, tab.len)
+      if (opened.line) goTo(opened.line, opened.col, opened.len)
       setLoaded(true)
       status()
     }
 
-    if (tab.path) {
+    if (opened.path) {
       agent
-        .read(tab.path)
+        .read(opened.path)
         .then((r) => {
           if (disposed) return
-          if (r.binary) setNote(`${basename(tab.path!)} is a binary file (${r.size.toLocaleString()} bytes) and can't be shown.`)
-          else if (r.tooLarge) setNote(`${basename(tab.path!)} is too large to open (${(r.size / 1048576).toFixed(1)} MB).`)
+          if (r.binary) setNote(`${basename(opened.path!)} is a binary file (${r.size.toLocaleString()} bytes) and can't be shown.`)
+          else if (r.tooLarge) setNote(`${basename(opened.path!)} is too large to open (${(r.size / 1048576).toFixed(1)} MB).`)
           else attach(r.content)
         })
         .catch((err) => {
@@ -141,7 +142,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
           else setNote(errorText(err))
         })
     } else {
-      attach(tab.text ?? '')
+      attach(opened.text ?? '')
     }
 
     const subs = [
@@ -208,7 +209,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
         return { status }
       })
     }
-  }, [tab.id])
+  }, [tab.id, opened, project])
 
   useEffect(() => {
     const model = editorRef.current?.getModel()

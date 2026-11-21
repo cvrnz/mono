@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { agentFor } from '../lib/agent'
 import { sidebarFocused } from '../lib/actions'
 import { errorText } from '../lib/bridge'
+import { useBlobUrl } from '../lib/blobUrl'
 import { register } from '../lib/panes'
 import { basename } from '../lib/paths'
 import * as S from '../lib/store'
@@ -41,8 +42,6 @@ export default function ViewerPane({ tab, active }: Props) {
 
   useEffect(() => {
     let live = true
-    setData(null)
-    setNote(null)
     agentFor(project)
       .readBytes(path)
       .then((r) => {
@@ -73,20 +72,9 @@ function NoteView({ id, active, text }: { id: string; active: boolean; text: str
   )
 }
 
-/** A URL for a blob that lives as long as the component shows it. */
-export function useBlobUrl(make: () => Blob, deps: unknown[]): string | null {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => {
-    const u = URL.createObjectURL(make())
-    setUrl(u)
-    return () => URL.revokeObjectURL(u)
-    // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, deps)
-  return url
-}
-
 function BytesImage({ tab, active, bytes, size }: Props & { bytes: Uint8Array<ArrayBuffer>; size: number }) {
-  const url = useBlobUrl(() => new Blob([bytes], { type: imageType(tab.path!) }), [bytes, tab.path])
+  const blob = useMemo(() => new Blob([bytes], { type: imageType(tab.path!) }), [bytes, tab.path])
+  const url = useBlobUrl(blob)
   return url ? <ImageView id={tab.id} active={active} url={url} size={size} /> : null
 }
 
@@ -231,11 +219,12 @@ function SheetGrid({ tab, active, sheets }: Props & { sheets: Sheet[] }) {
     return () => ro.disconnect()
   }, [])
 
-  useEffect(() => {
-    box.current?.scrollTo(0, 0)
+  const showSheet = (i: number) => {
+    setIndex(i)
     setView((v) => ({ ...v, top: 0 }))
     setCell({ r: 0, c: 0 })
-  }, [index])
+    box.current?.scrollTo(0, 0)
+  }
 
   useFocus(tab.id, active, box, true)
   const value = sheet.rows[cell.r]?.[cell.c]
@@ -272,8 +261,8 @@ function SheetGrid({ tab, active, sheets }: Props & { sheets: Sheet[] }) {
     else if (k === 'End') moveTo(cell.r, sheet.cols - 1)
     else if (k === 'g') moveTo(0, cell.c)
     else if (k === 'G') moveTo(sheet.rows.length - 1, cell.c)
-    else if (k === ']') setIndex((i) => (i + 1) % sheets.length)
-    else if (k === '[') setIndex((i) => (i - 1 + sheets.length) % sheets.length)
+    else if (k === ']') showSheet((index + 1) % sheets.length)
+    else if (k === '[') showSheet((index - 1 + sheets.length) % sheets.length)
     else return
     e.preventDefault()
   }
@@ -327,7 +316,7 @@ function SheetGrid({ tab, active, sheets }: Props & { sheets: Sheet[] }) {
       {sheets.length > 1 && (
         <div className="sheet-tabs" onMouseDown={(e) => e.preventDefault()}>
           {sheets.map((s, i) => (
-            <button key={s.name + i} className={i === index ? 'on' : ''} onClick={() => setIndex(i)}>
+            <button key={s.name + i} className={i === index ? 'on' : ''} onClick={() => showSheet(i)}>
               {s.name}
             </button>
           ))}

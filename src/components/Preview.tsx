@@ -8,7 +8,8 @@ import { toast } from '../lib/dialogs'
 import { dirname, isAbsolute, join, normalize } from '../lib/paths'
 import * as S from '../lib/store'
 import { bytesOf, imageType, type Preview as Kind } from '../lib/viewers'
-import { ImageView, useBlobUrl } from './ViewerPane'
+import { useBlobUrl } from '../lib/blobUrl'
+import { ImageView } from './ViewerPane'
 
 const external = /^[a-z][a-z0-9+.-]*:/i
 
@@ -80,7 +81,8 @@ function MarkdownPreview({ text, path }: { text: string; path: string }) {
 }
 
 function SvgPreview({ id, text }: { id: string; text: string }) {
-  const url = useBlobUrl(() => new Blob([text], { type: 'image/svg+xml' }), [text])
+  const blob = useMemo(() => new Blob([text], { type: 'image/svg+xml' }), [text])
+  const url = useBlobUrl(blob)
   return url ? <ImageView id={`${id}:svg`} active={false} url={url} status={false} vector /> : null
 }
 

@@ -111,7 +111,7 @@ export default function RunView({ id }: { id: string }) {
       </div>
       <div className="run-view-body">
         <div ref={host} className="term-host" />
-        {finding && termRef.current && searchRef.current && <TermFind term={termRef.current} search={searchRef.current} onClose={() => setFinding(false)} />}
+        {finding && <TermFind term={termRef} search={searchRef} onClose={() => setFinding(false)} />}
       </div>
     </div>
   )
