@@ -94,7 +94,7 @@ function svgUrl(pack: IconPack, set: IconSet, name: string): string | undefined 
 }
 
 const catNames: Names = {
-  'package.json': 'package-json', 'package-lock.json': 'npm-lock', 'bun.lock': 'bun-lock', 'bun.lockb': 'bun-lock', 'yarn.lock': 'yarn-lock',
+  'package.json': 'package-json', 'package-lock.json': 'npm-lock', 'yarn.lock': 'yarn-lock',
   'pnpm-lock.yaml': 'pnpm-lock', 'cargo.toml': 'cargo', 'cargo.lock': 'cargo-lock', dockerfile: 'docker', 'docker-compose.yml': 'docker-compose',
   'compose.yaml': 'docker-compose', '.dockerignore': 'docker-ignore', '.gitignore': 'git', '.gitattributes': 'git', '.gitmodules': 'git',
   'readme.md': 'readme', license: 'license', 'license.md': 'license', 'changelog.md': 'changelog', makefile: 'makefile',

@@ -77,7 +77,7 @@ function guessLanguage(path: string | null, firstLine?: string): string {
   if (firstLine?.startsWith('#!')) {
     if (/\b(ba|z|k)?sh\b/.test(firstLine)) return 'shell'
     if (/python/.test(firstLine)) return 'python'
-    if (/node|deno|bun/.test(firstLine)) return 'javascript'
+    if (/node|deno/.test(firstLine)) return 'javascript'
     if (/ruby/.test(firstLine)) return 'ruby'
     if (/perl/.test(firstLine)) return 'perl'
   }

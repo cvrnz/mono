@@ -195,7 +195,7 @@ export default function RunPane({ tab, active }: Props) {
               return (
                 <div key="add" className={`row run-row dim ${i === at ? 'selected' : ''}`} onMouseDown={select(i)} onClick={() => edit(undefined)}>
                   <Icon name="plus" className="run-play run-add" />
-                  {list.length ? 'Add configuration' : 'Add a configuration, like bun run dev'}
+                  {list.length ? 'Add configuration' : 'Add a configuration, like pnpm dev'}
                 </div>
               )
             }
