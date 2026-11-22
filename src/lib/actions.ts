@@ -8,6 +8,7 @@ import { basename, join, normalize } from './paths'
 import * as R from './runs'
 import * as S from './store'
 import * as sql from './sql'
+import { previewFor } from './viewers'
 
 export function root(): string {
   return S.connected()?.root ?? '/'
@@ -95,6 +96,15 @@ export function openDiff(repo: string, change: Change, opts: OpenOptions = {}) {
 export function openCommit(repo: string, c: Commit, opts: OpenOptions = {}) {
   const existing = S.get().tabs.find((t) => t.kind === 'commit' && t.repo === repo && t.hash === c.hash)
   show({ id: S.newId(), kind: 'commit', repo, hash: c.hash, subject: c.subject, preview: opts.preview }, existing, opts)
+}
+
+/** Switches the file in front between its rendered view and its text. */
+export function togglePreview() {
+  const tab = S.activeTab()
+  if (tab?.kind !== 'file' || !previewFor(tab.path)) return toast('Only Markdown and SVG files have a rendered view')
+  const rendered = tab.rendered ?? S.get().settings.preview !== false
+  S.updateTab(tab.id, { rendered: !rendered })
+  focusActive()
 }
 
 /** Shows what a run printed, in its own tab. */

@@ -201,13 +201,10 @@ export const commands: Command[] = [
   },
   {
     name: 'Preview',
-    desc: 'Show or hide the rendered view beside Markdown and SVG files',
+    desc: 'Switch a Markdown or SVG file between its rendered view and its text',
+    keys: 'Mod+Shift+V',
     aliases: ['TogglePreview', 'MarkdownPreview'],
-    run: () => {
-      const preview = S.get().settings.preview === false
-      updateSettings({ preview })
-      toast(preview ? 'Previews on' : 'Previews off')
-    },
+    run: () => A.togglePreview(),
   },
   { name: 'Explorer', desc: 'Show or hide the Explorer sidebar', keys: 'Mod+E', run: () => A.openExplorer() },
   { name: 'RefreshExplorer', desc: 'Read the folders shown in the Explorer again', aliases: ['ReloadExplorer'], run: () => A.refreshExplorer() },

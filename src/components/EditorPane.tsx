@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { agentFor } from '../lib/agent'
 import { askPath, okToWrite, sidebarFocused } from '../lib/actions'
 import { errorText } from '../lib/bridge'
+import { shortcut } from '../lib/commands'
 import { toast } from '../lib/dialogs'
 import { charWidth } from '../lib/metrics'
 import { languageFor, languageName, monaco } from '../lib/monaco'
@@ -38,7 +39,12 @@ export default function EditorPane({ tab, active, centered }: Props) {
   const project = S.useProjectId()
   const { vim, lineNumbers, fontSize, fontFamily, maxColumns, wordWrap } = settings
   const previewKind = previewFor(tab.path)
-  const showPreview = previewKind !== null && settings.preview !== false
+  const rendered = previewKind !== null && (tab.rendered ?? settings.preview !== false)
+  const previewBox = useRef<HTMLDivElement>(null)
+  const renderedRef = useRef(rendered)
+  useEffect(() => {
+    renderedRef.current = rendered
+  })
 
   useEffect(() => {
     let disposed = false
@@ -183,7 +189,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
     }
 
     const unregister = register(tab.id, {
-      focus: () => editor.focus(),
+      focus: () => (renderedRef.current ? previewBox.current?.focus() : editor.focus()),
       save,
       isEmpty: () => (editor.getModel()?.getValueLength() ?? 0) === 0,
       reveal: goTo,
@@ -251,9 +257,10 @@ export default function EditorPane({ tab, active, centered }: Props) {
 
   useEffect(() => {
     if (active && loaded && !sidebarFocused()) {
-      editorRef.current?.focus()
+      if (rendered) previewBox.current?.focus()
+      else editorRef.current?.focus()
     }
-  }, [active, loaded])
+  }, [active, loaded, rendered])
 
   const [, setFontsReady] = useState(0)
   useEffect(() => {
@@ -261,11 +268,27 @@ export default function EditorPane({ tab, active, centered }: Props) {
   }, [])
 
   const width = Math.ceil(maxColumns * charWidth(fontFamily, fontSize)) + 12
-  const center = centered && !showPreview
+  const center = centered && !rendered
   return (
     <div className={`pane-inner ${center ? 'centered' : ''}`} style={center ? { maxWidth: width } : undefined}>
-      <div ref={host} className={`editor-host ${showPreview ? 'with-preview' : ''}`} style={{ visibility: note ? 'hidden' : undefined }} />
-      {showPreview && loaded && !note && <Preview id={tab.id} kind={previewKind} text={text} path={tab.path!} />}
+      <div ref={host} className="editor-host" style={{ visibility: note || rendered ? 'hidden' : undefined }} />
+      {rendered && loaded && !note && (
+        <div
+          className="preview-host"
+          ref={previewBox}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key !== 'e' || e.metaKey || e.ctrlKey || e.altKey) return
+            e.preventDefault()
+            S.updateTab(tab.id, { rendered: false })
+          }}
+        >
+          <Preview id={tab.id} kind={previewKind} text={text} path={tab.path!} />
+          <button className="preview-edit" title={`Edit the text (e, or ${shortcut('Preview')})`} onClick={() => S.updateTab(tab.id, { rendered: false })}>
+            Edit
+          </button>
+        </div>
+      )}
       {note && (
         <div className="editor-note" tabIndex={0} ref={(el) => {
             if (el && active && !sidebarFocused()) el.focus()

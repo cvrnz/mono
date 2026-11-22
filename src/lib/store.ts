@@ -38,7 +38,7 @@ export type Settings = {
   gitLog?: boolean
   /** How tall the Git sidebar's lists are (weights, from their heights when last resized) and which are folded; the log folds with gitLog. */
   gitPanels?: Partial<Record<'repos' | 'changes' | 'log', { size?: number; closed?: boolean }>>
-  /** Show Markdown and SVG files rendered beside their text (default on). */
+  /** Open Markdown and SVG files rendered instead of as text (default on). */
   preview?: boolean
   /** Shortcuts changed from their defaults, by command name ('' for none). */
   keys?: Record<string, string>
@@ -113,6 +113,8 @@ export type FileTab = TabBase & {
   /** What a new, unsaved file starts with, and its tab's name. */
   text?: string
   name?: string
+  /** Shown rendered (Markdown, SVG) instead of as text; unset follows settings.preview. */
+  rendered?: boolean
 }
 export type DiffTab = TabBase & { kind: 'diff'; repo: string; change: Change }
 export type CommitTab = TabBase & { kind: 'commit'; repo: string; hash: string; subject: string }

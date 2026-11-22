@@ -1778,17 +1778,32 @@ kbd:last-of-type {
   color: var(--fg);
 }
 
-.editor-host.with-preview {
-  right: 50%;
+.preview-host {
+  position: absolute;
+  inset: 0;
+  outline: none;
 }
 .file-preview {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  right: 0;
-  border-left: 1px solid var(--border);
+  inset: 0;
   overflow: auto;
+}
+.preview-edit {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  padding: 2px 10px;
+  font: inherit;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--dim);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.preview-edit:hover {
+  color: var(--fg);
 }
 .markdown {
   padding: 1em 2em 3em;
