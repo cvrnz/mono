@@ -55,6 +55,10 @@ impl Config {
     pub fn ssl(&self) -> bool {
         self.ssl.unwrap_or(false)
     }
+    /// Whether to skip checking the server's certificate, for servers with self-signed ones.
+    pub fn trust_cert(&self) -> bool {
+        self.trust_cert.unwrap_or(false)
+    }
 }
 
 #[derive(Serialize, Default)]

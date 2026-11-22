@@ -146,7 +146,7 @@ impl Ms {
         }
         config.authentication(auth(c)?);
         config.encryption(if c.ssl() { EncryptionLevel::Required } else { EncryptionLevel::NotSupported });
-        if c.trust_cert.unwrap_or(true) {
+        if c.trust_cert() {
             config.trust_cert();
         }
         let mut conn = connect(&config).await?;

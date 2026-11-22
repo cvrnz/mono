@@ -74,7 +74,7 @@ impl My {
             .db_name(c.database())
             .prefer_socket(false);
         if c.ssl() {
-            b = b.ssl_opts(Some(SslOpts::default().with_danger_accept_invalid_certs(true).with_danger_skip_domain_validation(true)));
+            b = b.ssl_opts(Some(SslOpts::default().with_danger_accept_invalid_certs(c.trust_cert()).with_danger_skip_domain_validation(c.trust_cert())));
         }
         let opts: Opts = b.into();
         let mut conn = tokio::time::timeout(Duration::from_secs(15), Conn::new(opts.clone()))

@@ -564,7 +564,7 @@ function ConnectionForm({ initial, was, error, busy, onConnect, onSave, onDelete
       out.password = c.password || undefined
       out.database = c.database?.trim() || undefined
       if (c.ssl) out.ssl = true
-      if (c.engine === 'mssql' && c.trustCert === false) out.trustCert = false
+      if (c.ssl && c.trustCert) out.trustCert = true
       if (c.engine === 'mssql' && c.windowsAuth) out.windowsAuth = true
     }
     return out
@@ -656,9 +656,9 @@ function ConnectionForm({ initial, was, error, busy, onConnect, onSave, onDelete
               <label>
                 <input type="checkbox" checked={Boolean(c.ssl)} onChange={(e) => set({ ssl: e.target.checked })} /> {c.engine === 'mssql' ? 'Encrypt' : 'SSL'}
               </label>
-              {c.engine === 'mssql' && (
-                <label>
-                  <input type="checkbox" checked={c.trustCert !== false} onChange={(e) => set({ trustCert: e.target.checked })} /> Trust the server's certificate
+              {c.ssl && (
+                <label title="Only for servers with a self-signed certificate: anyone between you and the server could read the password and queries.">
+                  <input type="checkbox" checked={Boolean(c.trustCert)} onChange={(e) => set({ trustCert: e.target.checked })} /> Don't check the server's certificate
                 </label>
               )}
             </div>

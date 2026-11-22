@@ -107,8 +107,8 @@ impl Pg {
         let lost = Arc::new(Mutex::new(None));
         let (client, task, tls) = if c.ssl() {
             let connector = native_tls::TlsConnector::builder()
-                .danger_accept_invalid_certs(true)
-                .danger_accept_invalid_hostnames(true)
+                .danger_accept_invalid_certs(c.trust_cert())
+                .danger_accept_invalid_hostnames(c.trust_cert())
                 .build()
                 .map_err(|e| e.to_string())?;
             let tls = MakeTlsConnector::new(connector);
