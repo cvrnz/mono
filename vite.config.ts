@@ -14,6 +14,8 @@ export default defineConfig({
       // monaco-vim imports Monaco by paths its package exports no longer map.
       { find: /^monaco-editor\/esm\/(.*?)(\.js)?$/, replacement: join(modules, 'monaco-editor/esm/$1.js') },
       { find: /^monaco-vim$/, replacement: join(modules, 'monaco-vim/dist/index.mjs') },
+      // Monaco keeps its own older copy of DOMPurify; use the app's patched one.
+      { find: /^\.\/dompurify\/dompurify\.js$/, replacement: join(modules, 'dompurify/dist/purify.es.mjs') },
     ],
   },
   worker: { format: 'es' },

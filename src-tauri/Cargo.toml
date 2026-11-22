@@ -22,7 +22,7 @@ native-tls = "0.2"
 mysql_async = { version = "0.37", default-features = false, features = ["minimal", "native-tls-tls"] }
 tiberius = { version = "0.12", default-features = false, features = ["tds73", "native-tls", "chrono", "winauth"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-app-kit = { version = "0.3", features = ["NSWindow", "NSButton", "NSControl", "NSView", "NSResponder"] }
