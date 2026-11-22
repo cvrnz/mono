@@ -1,7 +1,9 @@
 import { invoke, on } from './bridge'
 import * as S from './store'
+import { isTrusted, UntrustedError } from './trust'
 
 async function call<T>(conn: string, method: string, params: unknown = {}): Promise<T> {
+  if (method.startsWith('scm.') && !isTrusted(conn)) throw new UntrustedError()
   return invoke<T>('call', { conn, method, params })
 }
 

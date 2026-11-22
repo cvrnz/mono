@@ -43,6 +43,8 @@ export type Settings = {
   /** Shortcuts changed from their defaults, by command name ('' for none). */
   keys?: Record<string, string>
   session?: SavedSession
+  /** Folders git may run in (see trust.ts), as `local:/path` or `docker:container:/path`. */
+  trustedFolders?: string[]
 }
 
 export type SavedTab = (

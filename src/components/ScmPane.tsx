@@ -1,3 +1,4 @@
+import { Button } from '@heroui/react'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { agentFor, type Change, type Commit, type Repo } from '../lib/agent'
 import { openCommit, openDiff, openFile, toggleGitLog, type OpenOptions } from '../lib/actions'
@@ -10,6 +11,7 @@ import * as S from '../lib/store'
 import FileIcon from './FileIcon'
 import Icon from './Icon'
 import { useHints } from '../lib/hints'
+import { trustFolder, useTrusted } from '../lib/trust'
 
 type Busy = { repo: string; verb: string; frame: number } | { repo: string; text: string; cls: string }
 type Item = { repo?: Repo; change?: Change; commit?: Commit; sync?: boolean }
@@ -65,6 +67,26 @@ function rootOf(project: string): string {
 }
 
 export default function ScmPane({ id, active }: { id: string; active: boolean }) {
+  const project = S.useProjectId()
+  const trusted = useTrusted(project)
+  return trusted ? <Scm id={id} active={active} /> : <Untrusted id={id} project={project} />
+}
+
+function Untrusted({ id, project }: { id: string; project: string }) {
+  const button = useRef<HTMLButtonElement>(null)
+  useEffect(() => register(id, { focus: () => button.current?.focus() }), [id])
+  return (
+    <div className="scm scm-untrusted">
+      <p>A repo's own settings can make git run programs, so Mono runs git only in folders you trust.</p>
+      <p>Trust this folder if you know where it came from.</p>
+      <Button ref={button} size="sm" variant="primary" onPress={() => trustFolder(project)}>
+        Trust this folder
+      </Button>
+    </div>
+  )
+}
+
+function Scm({ id, active }: { id: string; active: boolean }) {
   const [repos, setRepos] = useState<Repo[] | null>(null)
   const [repo, setRepo] = useState<Repo | null>(null)
   const [files, setFiles] = useState<Change[]>([])
