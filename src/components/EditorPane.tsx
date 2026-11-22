@@ -268,7 +268,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
   }, [])
 
   const width = Math.ceil(maxColumns * charWidth(fontFamily, fontSize)) + 12
-  const center = centered && !rendered
+  const center = centered && !(rendered && previewKind === 'svg')
   return (
     <div className={`pane-inner ${center ? 'centered' : ''}`} style={center ? { maxWidth: width } : undefined}>
       <div ref={host} className="editor-host" style={{ visibility: note || rendered ? 'hidden' : undefined }} />

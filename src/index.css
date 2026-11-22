@@ -1814,6 +1814,9 @@ kbd:last-of-type {
   max-width: 900px;
   user-select: text;
 }
+.pane-inner.centered .markdown {
+  max-width: none;
+}
 .markdown h1,
 .markdown h2,
 .markdown h3,
