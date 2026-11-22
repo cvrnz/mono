@@ -31,7 +31,7 @@ function MarkdownPreview({ text, path }: { text: string; path: string }) {
       }
     })
     try {
-      return DOMPurify.sanitize(marked.parse(text, { gfm: true, async: false }))
+      return DOMPurify.sanitize(marked.parse(text, { gfm: true, async: false }), { FORBID_TAGS: ['form'], FORBID_ATTR: ['action', 'formaction'] })
     } finally {
       DOMPurify.removeHook('afterSanitizeAttributes')
     }

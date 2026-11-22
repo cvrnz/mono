@@ -167,6 +167,21 @@ fn theme_files(dir: &std::path::Path) -> Vec<(String, String)> {
 }
 
 #[cfg(test)]
+mod navigation_tests {
+    #[test]
+    fn stays_on_the_apps_own_pages() {
+        let ok = |u: &str| super::app_page(&u.parse().unwrap());
+        assert!(ok("tauri://localhost/index.html"));
+        assert!(ok("http://tauri.localhost/"));
+        assert!(ok("about:srcdoc"));
+        assert!(!ok("https://example.com/"));
+        assert!(!ok("http://tauri.localhost.example.com/"));
+        assert!(!ok("file:///etc/passwd"));
+        assert!(!ok("data:text/html,hi"));
+    }
+}
+
+#[cfg(test)]
 mod theme_tests {
     #[test]
     fn reads_themes_and_cloned_theme_repos() {
@@ -419,6 +434,17 @@ fn quit_now(app: &AppHandle) {
     });
 }
 
+/// Whether a page is the app's own; anything else (like a link or form in a previewed file) mustn't replace it.
+fn app_page(url: &tauri::Url) -> bool {
+    match url.scheme() {
+        "tauri" | "about" => true,
+        "http" | "https" => {
+            url.host_str() == Some("tauri.localhost") || (cfg!(debug_assertions) && url.host_str() == Some("127.0.0.1") && url.port() == Some(9245))
+        }
+        _ => false,
+    }
+}
+
 fn menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let quit = MenuItem::with_id(app, "quit", "Quit Mono", true, Some("CmdOrCtrl+Q"))?;
     let app_menu = Submenu::with_items(
@@ -462,6 +488,7 @@ fn main() {
     shell::use_login_path();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri::plugin::Builder::<tauri::Wry>::new("navigation").on_navigation(|_, url| app_page(url)).build())
         .manage(App::default())
         .menu(menu)
         .on_menu_event(|app, e| if e.id().as_ref() == "quit" {
