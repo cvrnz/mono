@@ -1,5 +1,6 @@
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useEffect, useRef, useState } from 'react'
+import * as A from '../lib/actions'
 import { confirm, toast } from '../lib/dialogs'
 import { register } from '../lib/panes'
 import { pretty } from '../lib/paths'
@@ -39,7 +40,10 @@ export default function RunPane({ tab, active }: Props) {
   const project = S.useProjectId()
   const list = S.useStore((s) => R.configs(s))
   const runs = S.useStore((s) => s.runs).filter((r) => r.project === project)
-  const viewing = S.useStore((s) => s.runView)
+  const viewing = S.useStore((s) => {
+    const t = s.tabs.find((x) => x.id === s.active)
+    return t?.kind === 'output' ? t.run : null
+  })
   const conn = S.useStore((s) => s.conn)
   const [form, setForm] = useState<Form | null>(null)
   const [cursor, setCursor] = useState(0)
@@ -61,7 +65,7 @@ export default function RunPane({ tab, active }: Props) {
 
   const run = async (config: S.RunConfig) => {
     const id = await R.start(config, project)
-    if (id) R.show(id)
+    if (id) A.openRun(id, { preview: true })
   }
 
   const edit = (r: Row | undefined) => {
@@ -102,7 +106,7 @@ export default function RunPane({ tab, active }: Props) {
   const choose = (r: Row | undefined) => {
     if (r?.kind === 'config') run(r.config)
     else if (r?.kind === 'add') edit(undefined)
-    else if (r?.kind === 'run') R.show(r.run.id)
+    else if (r?.kind === 'run') A.openRun(r.run.id)
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -119,8 +123,8 @@ export default function RunPane({ tab, active }: Props) {
     else if (k === 'd' && row?.kind === 'config') remove(row.at)
     else if (k === 's' && row?.kind === 'run') R.stop(row.run.id)
     else if (k === 'r' && row?.kind === 'run') R.rerun(row.run.id)
-    else if ((k === 'x' || k === 'd') && row?.kind === 'run') R.dismiss(row.run.id)
-    else if (k === 'Escape' && viewing) R.show(null)
+    else if ((k === 'x' || k === 'd') && row?.kind === 'run') A.dismissRun(row.run.id)
+    else if (k === ' ' && row?.kind === 'run') A.openRun(row.run.id, { preview: true, focus: false })
     else return
     e.preventDefault()
     e.stopPropagation()
@@ -135,7 +139,7 @@ export default function RunPane({ tab, active }: Props) {
     form
       ? ['Enter save', '⌘Enter save and run', 'Tab next field', 'Esc cancel']
       : row?.kind === 'run'
-        ? ['j/k move', 'Enter show output', 's stop', 'r run again', 'x dismiss', 'a add']
+        ? ['j/k move', 'Enter open output', 'Space preview', 's stop', 'r run again', 'x dismiss', 'a add']
         : ['j/k move', 'Enter run', 'a add', 'e edit', 'd delete'],
   )
 
@@ -238,7 +242,8 @@ export default function RunPane({ tab, active }: Props) {
                 className={`row run-row ${i === at ? 'selected' : ''} ${viewing === x.id ? 'viewing' : ''}`}
                 title={`${x.command}\n${x.cwd}`}
                 onMouseDown={select(i)}
-                onClick={() => R.show(x.id)}
+                onClick={() => A.openRun(x.id, { preview: true })}
+                onDoubleClick={() => A.openRun(x.id)}
               >
                 <Status run={x} />
                 <span className="name">{x.name}</span>
@@ -255,7 +260,7 @@ export default function RunPane({ tab, active }: Props) {
                       <Icon name="again" />
                     </span>
                   )}
-                  <span className="icon-btn" title="Dismiss (x)" onClick={(e) => (e.stopPropagation(), R.dismiss(x.id))}>
+                  <span className="icon-btn" title="Dismiss (x)" onClick={(e) => (e.stopPropagation(), A.dismissRun(x.id))}>
                     <Icon name="close" />
                   </span>
                 </span>

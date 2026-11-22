@@ -125,7 +125,9 @@ export type SearchKind = 'files' | 'text'
 export type SearchTab = TabBase & { kind: 'search'; ask?: { kind: SearchKind; text: string; n: number } }
 export type RunTab = TabBase & { kind: 'run' }
 export type DatabaseTab = TabBase & { kind: 'database' }
-export type Tab = FileTab | DiffTab | CommitTab | TerminalTab | ScmTab | WelcomeTab | ExplorerTab | SqlTab | SearchTab | RunTab | DatabaseTab
+/** What a run printed, shown read-only. */
+export type OutputTab = TabBase & { kind: 'output'; run: string }
+export type Tab = FileTab | DiffTab | CommitTab | TerminalTab | ScmTab | WelcomeTab | ExplorerTab | SqlTab | SearchTab | RunTab | DatabaseTab | OutputTab
 
 export const fixedKinds = ['explorer', 'scm', 'run', 'search', 'database'] as const
 export type FixedKind = (typeof fixedKinds)[number]
@@ -189,8 +191,6 @@ export type State = {
   /** The folder each terminal pane's shell is in, by pane id. */
   cwds: Record<string, string>
   runs: Run[]
-  /** The run whose output covers the panes, if any. */
-  runView: string | null
   session: number
   /** The tab or project being dragged along its bar. */
   dragging: string | null
@@ -214,7 +214,6 @@ let state: State = {
   procs: {},
   cwds: {},
   runs: [],
-  runView: null,
   session: 0,
   dragging: null,
   hints: {},

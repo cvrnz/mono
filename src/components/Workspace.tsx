@@ -57,6 +57,8 @@ function tabLabel(tab: S.Tab): string {
       return 'Database'
     case 'sql':
       return tab.conn ? `SQL: ${tab.conn}` : 'SQL'
+    case 'output':
+      return S.get().runs.find((r) => r.id === tab.run)?.name ?? 'Output'
   }
 }
 
@@ -304,6 +306,8 @@ function content(tab: S.Tab, active: boolean, centered: boolean): ReactNode {
       return <Welcome id={tab.id} active={active} />
     case 'sql':
       return <SqlPane tab={tab} active={active} />
+    case 'output':
+      return <RunView key={tab.run} id={tab.run} tabId={tab.id} active={active} />
     default:
       return null
   }
@@ -407,13 +411,11 @@ function Panes() {
   const projects = S.useStore((s) => s.projects)
   const current = S.useStore((s) => s.project)
   const connected = S.useStore((s) => S.isConnected(s.conn))
-  const runView = S.useStore((s) => (s.runView && s.runs.some((r) => r.id === s.runView && r.project === s.project) ? s.runView : null))
   return (
     <div className="panes">
       {projects.map((p) => (
         <ProjectPanes key={p.id} project={p} current={p.id === current} />
       ))}
-      {connected && runView && <RunView key={runView} id={runView} />}
       {!connected && (
         <div className="connect-layer">
           <ConnectScreen key={current} />

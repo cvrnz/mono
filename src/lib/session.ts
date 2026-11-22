@@ -37,6 +37,8 @@ function saveTabOnly(t: S.Tab): S.SavedTab | null {
       return { kind: 'terminal', cwd: t.cwd, splits }
     case 'sql':
       return { kind: 'sql', conn: t.conn, text: t.text, splits }
+    case 'output':
+      return null
     default:
       return { kind: t.kind, splits }
   }

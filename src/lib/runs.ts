@@ -119,14 +119,17 @@ export function rerun(id: string) {
   const r = runOf(id)
   if (!l || !r) return
   dismiss(id)
-  start(l.config, r.project).then((next) => next && S.get().runView === id && S.set({ runView: next }))
+  start(l.config, r.project).then((next) => {
+    if (!next) return
+    for (const t of S.project(r.project)?.tabs ?? []) if (t.kind === 'output' && t.run === id) S.updateTab(t.id, { run: next })
+  })
 }
 
 export function dismiss(id: string) {
   const r = runOf(id)
   if (r && (r.state === 'running' || r.state === 'starting')) live.get(id)?.shell?.close()
   live.delete(id)
-  S.set((s) => ({ runs: s.runs.filter((x) => x.id !== id), runView: s.runView === id ? null : s.runView }))
+  S.set((s) => ({ runs: s.runs.filter((x) => x.id !== id) }))
 }
 
 /** Replays what the run printed so far, then passes on what comes next. */
@@ -142,17 +145,8 @@ export function resize(id: string, cols: number, rows: number) {
   live.get(id)?.shell?.resize(cols, rows)
 }
 
-export function show(id: string | null) {
-  S.set({ runView: id })
-}
-
-let seen = { active: S.get().active, project: S.get().project }
 S.subscribe(() => {
   const s = S.get()
-  if (s.active !== seen.active || s.project !== seen.project) {
-    seen = { active: s.active, project: s.project }
-    if (s.runView) S.set({ runView: null })
-  }
   for (const r of s.runs) {
     if (r.state !== 'running' && r.state !== 'starting') continue
     const p = S.project(r.project)

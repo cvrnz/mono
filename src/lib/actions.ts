@@ -5,6 +5,7 @@ import { pane } from './panes'
 import { saveSessionNow } from './session'
 import { updateSettings } from './settings'
 import { basename, join, normalize } from './paths'
+import * as R from './runs'
 import * as S from './store'
 import * as sql from './sql'
 
@@ -42,7 +43,7 @@ function emptySpot(): S.Tab | undefined {
 }
 
 export function activate(id: string) {
-  S.set({ active: id, runView: null })
+  S.set({ active: id })
   focusActive()
 }
 
@@ -94,6 +95,18 @@ export function openDiff(repo: string, change: Change, opts: OpenOptions = {}) {
 export function openCommit(repo: string, c: Commit, opts: OpenOptions = {}) {
   const existing = S.get().tabs.find((t) => t.kind === 'commit' && t.repo === repo && t.hash === c.hash)
   show({ id: S.newId(), kind: 'commit', repo, hash: c.hash, subject: c.subject, preview: opts.preview }, existing, opts)
+}
+
+/** Shows what a run printed, in its own tab. */
+export function openRun(run: string, opts: OpenOptions = {}) {
+  const existing = S.get().tabs.find((t) => t.kind === 'output' && t.run === run)
+  show({ id: S.newId(), kind: 'output', run, preview: opts.preview }, existing, opts)
+}
+
+/** Takes a run off the list, closing the tabs that show it. */
+export async function dismissRun(run: string) {
+  for (const t of S.get().tabs) if (t.kind === 'output' && t.run === run) await closeTab(t.id)
+  R.dismiss(run)
 }
 
 export function toggleWordWrap() {
@@ -185,8 +198,6 @@ export const toggleSearch = () => toggleFixed('search')
 /** ⌘F: find in the file or terminal in front. */
 export function findInPane() {
   const tab = S.activeTab()
-  const viewing = S.get().runView && pane('run-view')
-  if (viewing) return viewing.find?.()
   if (!tab || S.isFixed(tab)) return
   const h = pane(S.focusedPane(tab)) ?? pane(tab.id)
   if (h?.find) return h.find()

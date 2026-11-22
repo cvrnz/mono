@@ -2,6 +2,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { Terminal } from '@xterm/xterm'
 import { useEffect, useRef, useState } from 'react'
+import { closeTab } from '../lib/actions'
 import { copyText } from '../lib/bridge'
 import { register } from '../lib/panes'
 import * as R from '../lib/runs'
@@ -11,10 +12,8 @@ import { xtermTheme } from '../lib/themes'
 import TermFind from './TermFind'
 import Icon from './Icon'
 
-export const runViewPane = 'run-view'
-
-/** A run's output: the terminal it ran in, read-only, over the panes and without a tab. */
-export default function RunView({ id }: { id: string }) {
+/** A run's output: the terminal it ran in, read-only. */
+export default function RunView({ id, tabId, active }: { id: string; tabId: string; active: boolean }) {
   const run = S.useStore((s) => s.runs.find((r) => r.id === id))
   const host = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -59,17 +58,9 @@ export default function RunView({ id }: { id: string }) {
       term.onResize(({ cols, rows }) => R.resize(id, cols, rows)),
       term.onSelectionChange(() => term.hasSelection() && copyText(term.getSelection())),
     ]
-    term.attachCustomKeyEventHandler((e) => {
-      if (e.type === 'keydown' && e.key === 'Escape') {
-        R.show(null)
-        return false
-      }
-      return true
-    })
     const observer = new ResizeObserver(doFit)
     observer.observe(host.current!)
-    const unregister = register(runViewPane, { focus: () => term.focus(), find: () => setFinding(true) })
-    requestAnimationFrame(() => term.focus())
+    const unregister = register(tabId, { focus: () => term.focus(), find: () => setFinding(true) })
     return () => {
       unregister()
       observer.disconnect()
@@ -78,7 +69,11 @@ export default function RunView({ id }: { id: string }) {
       term.dispose()
       termRef.current = null
     }
-  }, [id])
+  }, [id, tabId])
+
+  useEffect(() => {
+    if (active) requestAnimationFrame(() => termRef.current?.focus())
+  }, [active, id])
 
   useEffect(() => {
     const term = termRef.current
@@ -105,7 +100,7 @@ export default function RunView({ id }: { id: string }) {
             Run again
           </span>
         )}
-        <span className="icon-btn" title="Close (Esc)" onMouseDown={(e) => (e.preventDefault(), R.show(null))}>
+        <span className="icon-btn" title="Close" onMouseDown={(e) => (e.preventDefault(), closeTab(tabId))}>
           <Icon name="close" />
         </span>
       </div>
