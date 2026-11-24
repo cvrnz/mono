@@ -498,6 +498,9 @@ fn main() {
             move_old_config(app.handle());
             if let Some(w) = app.get_webview_window("main") {
                 hide_window_buttons(&w);
+                // titleBarStyle "Overlay" only applies on macOS; on Linux the page is the title bar.
+                #[cfg(target_os = "linux")]
+                w.set_decorations(false)?;
             }
             Ok(())
         })
