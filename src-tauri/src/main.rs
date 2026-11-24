@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+#[cfg(not(target_os = "linux"))]
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
 
@@ -445,6 +446,7 @@ fn app_page(url: &tauri::Url) -> bool {
     }
 }
 
+#[cfg(not(target_os = "linux"))]
 fn menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let quit = MenuItem::with_id(app, "quit", "Quit Mono", true, Some("CmdOrCtrl+Q"))?;
     let app_menu = Submenu::with_items(
@@ -486,11 +488,14 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
 
 fn main() {
     shell::use_login_path();
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // On macOS the menu lives in the system menu bar; on Linux it would be a bar inside the window.
+    #[cfg(not(target_os = "linux"))]
+    let builder = builder.menu(menu);
+    let app = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri::plugin::Builder::<tauri::Wry>::new("navigation").on_navigation(|_, url| app_page(url)).build())
         .manage(App::default())
-        .menu(menu)
         .on_menu_event(|app, e| if e.id().as_ref() == "quit" {
             ask_page(app);
         })

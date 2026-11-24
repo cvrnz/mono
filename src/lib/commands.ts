@@ -346,7 +346,7 @@ export const commands: Command[] = [
     project: true,
     run: () => A.switchToProject(i),
   })),
-  { name: 'Quit', desc: 'Quit the app', aliases: ['qa', 'qall', 'quitall'], run: () => A.quit() },
+  { name: 'Quit', desc: 'Quit the app', keys: 'Mod+Q', aliases: ['qa', 'qall', 'quitall'], always: true, run: () => A.quit() },
 ]
 
 export function resolve(typed: string): { command: Command; args: string } | null {
