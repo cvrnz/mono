@@ -10,7 +10,7 @@ import { languageFor, languageName, monaco } from '../lib/monaco'
 import { register } from '../lib/panes'
 import { basename } from '../lib/paths'
 import * as S from '../lib/store'
-import { setupVim, Vim } from '../lib/vim'
+import { copyOnCtrlC, setupVim, Vim } from '../lib/vim'
 import { previewFor } from '../lib/viewers'
 import Preview from './Preview'
 
@@ -233,6 +233,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
       return
     }
     setupVim()
+    const copier = copyOnCtrlC(editor)
     const adapter = initVimMode(editor, vimNode.current)
     vimRef.current = adapter
     modeRef.current = 'normal'
@@ -245,6 +246,7 @@ export default function EditorPane({ tab, active, centered }: Props) {
     const st = S.get().status[tab.id]
     if (st) S.setPaneStatus(tab.id, { ...st, mode: 'normal' })
     return () => {
+      copier.dispose()
       adapter.dispose()
       if (vimRef.current === adapter) vimRef.current = null
       modeRef.current = 'insert'

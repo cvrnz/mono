@@ -1,5 +1,7 @@
 import { VimMode } from 'monaco-vim'
 import * as A from './actions'
+import { copyText } from './bridge'
+import { monaco } from './monaco'
 import { pane } from './panes'
 import * as S from './store'
 
@@ -16,6 +18,17 @@ export const Vim = (VimMode as unknown as { Vim: VimApi }).Vim
 function activePane() {
   const tab = S.activeTab()
   return tab ? pane(S.focusedPane(tab)) : undefined
+}
+
+// Vim maps Ctrl+C to Esc, which off macOS left no key that copies. Copy the selection first;
+// Vim still gets the key and leaves Visual mode. Register before initVimMode so this runs first.
+export function copyOnCtrlC(editor: monaco.editor.IStandaloneCodeEditor) {
+  return editor.onKeyDown((e) => {
+    if (S.isMac() || !e.ctrlKey || e.shiftKey || e.altKey || e.metaKey || e.keyCode !== monaco.KeyCode.KeyC) return
+    const sel = editor.getSelection()
+    const model = editor.getModel()
+    if (sel && model && !sel.isEmpty()) copyText(model.getValueInRange(sel))
+  })
 }
 
 let ready = false

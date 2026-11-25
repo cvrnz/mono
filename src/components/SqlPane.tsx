@@ -8,7 +8,7 @@ import { register } from '../lib/panes'
 import { useParts } from '../lib/parts'
 import * as sql from '../lib/sql'
 import * as S from '../lib/store'
-import { setupVim } from '../lib/vim'
+import { copyOnCtrlC, setupVim } from '../lib/vim'
 import { useHints } from '../lib/hints'
 import SqlGrid from './SqlGrid'
 
@@ -149,6 +149,7 @@ export default function SqlPane({ tab, active }: Props) {
       return
     }
     setupVim()
+    const copier = copyOnCtrlC(editor)
     const adapter: VimAdapterInstance = initVimMode(editor, vimNode.current)
     modeRef.current = 'normal'
     adapter.on('vim-mode-change', (ev: { mode: string; subMode?: string }) => {
@@ -157,6 +158,7 @@ export default function SqlPane({ tab, active }: Props) {
     })
     status()
     return () => {
+      copier.dispose()
       adapter.dispose()
       modeRef.current = 'insert'
     }
