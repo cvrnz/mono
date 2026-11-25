@@ -506,6 +506,15 @@ fn main() {
                 // titleBarStyle "Overlay" only applies on macOS; on Linux the page is the title bar.
                 #[cfg(target_os = "linux")]
                 w.set_decorations(false)?;
+                // WebKitGTK refuses navigator.clipboard.readText (the terminal's Ctrl+V) unless the
+                // page may access the clipboard; it has no prompt to ask instead.
+                #[cfg(target_os = "linux")]
+                w.with_webview(|v| {
+                    use webkit2gtk::{SettingsExt, WebViewExt};
+                    if let Some(s) = v.inner().settings() {
+                        s.set_javascript_can_access_clipboard(true);
+                    }
+                })?;
             }
             Ok(())
         })

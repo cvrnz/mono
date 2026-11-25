@@ -2323,6 +2323,7 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tokio-util",
+ "webkit2gtk",
 ]
 
 [[package]]
