@@ -157,8 +157,19 @@ pnpm bundle   # build Mono.app and a .dmg into target/release/bundle
 ```
 
 The app finds `docker`, `git` and your shell's tools through your login shell's PATH, so it
-works when opened from Finder or the Dock. The build isn't signed: the first time, right-click
-the app and choose Open.
+works when opened from Finder or the Dock.
+
+On macOS the bundle is ad-hoc signed as `dev.mono.app`. A copy downloaded from elsewhere still
+needs right-click → Open the first time. macOS ties privacy permissions (Screen Recording,
+Accessibility, Full Disk Access, …) to the signature. With ad-hoc signing every build is a new
+app to macOS, so after installing a new build those permissions show as on but are refused
+until you remove and re-add Mono in System Settings. To keep them across builds, sign with the
+same certificate every time:
+
+```sh
+scripts/make-signing-cert.sh                        # once: self-signed cert in the login keychain
+APPLE_SIGNING_IDENTITY="Mono Local Signing" pnpm bundle
+```
 
 Checks:
 
