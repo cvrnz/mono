@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "sh scripts/build-page.sh",
     "lint": "oxlint",
     "agent": "sh scripts/build-agent.sh",
     "tauri": "tauri",

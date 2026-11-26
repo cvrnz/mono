@@ -14,12 +14,17 @@ serde_json = "1"
 base64 = "0.22"
 libc = "0.2"
 
+# Release builds are the installed app. Fat LTO with one codegen unit made every build relink
+# everything slowly, for no speed you can feel in the app; incremental keeps small changes small.
 [profile.release]
-codegen-units = 1
-lto = true
 strip = true
+incremental = true
 
+# The container helper is copied into every container, so it stays as small as possible.
 [profile.agent]
 inherits = "release"
 opt-level = "z"
 panic = "abort"
+lto = true
+codegen-units = 1
+incremental = false
