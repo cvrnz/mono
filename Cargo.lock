@@ -2306,23 +2306,15 @@ name = "mono"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "chrono",
- "futures-util",
  "mono-core",
- "mysql_async",
- "native-tls",
+ "mono-host",
  "objc2-app-kit",
- "postgres-native-tls",
- "rusqlite",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
- "tiberius",
  "tokio",
- "tokio-postgres",
- "tokio-util",
  "webkit2gtk",
 ]
 
@@ -2349,6 +2341,25 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "mono-host"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures-util",
+ "mono-core",
+ "mysql_async",
+ "native-tls",
+ "postgres-native-tls",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tiberius",
+ "tokio",
+ "tokio-postgres",
+ "tokio-util",
 ]
 
 [[package]]

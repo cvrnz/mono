@@ -1,11 +1,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod docker;
 mod shell;
-mod sql;
-mod theme_repos;
 
 use mono_core::Service;
+use mono_host::{docker, sql, theme_repos};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;

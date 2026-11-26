@@ -227,7 +227,7 @@ mod tests {
         let Ok(container) = std::env::var("MONO_TEST_CONTAINER") else { return };
         let listed = containers("docker").await.unwrap();
         assert!(listed.iter().any(|c| c.name == container && c.running));
-        let agents = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/agent");
+        let agents = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../src-tauri/resources/agent");
         let closed = Arc::new(Mutex::new(None));
         let seen = closed.clone();
         let agent = Agent::start("docker", &container, agents, Box::new(|_| {}), Box::new(|_, _| {}), Box::new(move |why| *seen.lock().unwrap() = Some(why)))

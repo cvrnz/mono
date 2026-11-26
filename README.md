@@ -189,9 +189,11 @@ Some tests need running services and are skipped without them:
   `components/` has the screens and panes (connect screen, tabs, editor, terminals, Git,
   Explorer, SQL); `lib/` the rest: calls to the backend (`bridge.ts`, `agent.ts`), app
   state, actions, commands, shortcuts, Vim, themes, the saved session and the window.
-- `src-tauri/` — the app: Tauri commands and the menu and quit handling (`src/main.rs`),
-  Docker containers and the helper's connection (`src/docker.rs`), and the SQL tabs' databases
-  (`src/sql`: tokio-postgres, mysql_async, tiberius and rusqlite).
+- `src-tauri/` — the app: Tauri commands and the menu and quit handling (`src/main.rs`).
+- `crates/host` — Docker containers and the helper's connection (`src/docker.rs`), the SQL tabs'
+  databases (`src/sql`: tokio-postgres, mysql_async, tiberius and rusqlite) and theme repos, used
+  by the app and by `mono-host`, the backend of Mono in the terminal (`src/main.rs`). That
+  version is a Neovim plugin in its own repo, [cvrnz/mono-nvim](https://github.com/cvrnz/mono-nvim).
 - `crates/core` — what a project does with files, search (ripgrep's libraries), git and
   terminals (portable-pty), called by method name with JSON. The app runs it in-process for
   folders on this computer; the helper runs it inside containers.
