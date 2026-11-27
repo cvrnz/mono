@@ -1,5 +1,19 @@
 import { agentFor, fromBase64, onAgent, toBase64 } from './agent'
+import type { FitAddon } from '@xterm/addon-fit'
+import type { Terminal } from '@xterm/xterm'
 import * as S from './store'
+
+/** Fits the terminal to its box. FitAddon leaves room beside the text for the scrollbar, which instead
+ * sits over the text while it scrolls (src/lib/scrollbars.ts), so this gives that room back to the text. */
+export function fitTerminal(term: Terminal, fit: FitAddon) {
+  const d = fit.proposeDimensions()
+  const box = term.element?.parentElement
+  if (!d || !box || !Number.isFinite(d.cols) || !Number.isFinite(d.rows)) return
+  const screen = term.element!.querySelector('.xterm-screen')
+  const cell = screen && term.cols ? screen.getBoundingClientRect().width / term.cols : 0
+  const cols = cell ? Math.max(d.cols, Math.floor((box.clientWidth + 0.5) / cell)) : d.cols
+  if (cols !== term.cols || d.rows !== term.rows) term.resize(cols, d.rows)
+}
 
 type Sink = { data: (bytes: Uint8Array) => void; exit: (code: number) => void; proc?: (name: string) => void; cwd?: (path: string) => void }
 

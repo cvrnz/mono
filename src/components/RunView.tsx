@@ -6,6 +6,7 @@ import { closeTab } from '../lib/actions'
 import { copyText } from '../lib/bridge'
 import { register } from '../lib/panes'
 import * as R from '../lib/runs'
+import { fitTerminal } from '../lib/terminals'
 import { currentTheme } from '../lib/settings'
 import * as S from '../lib/store'
 import { xtermTheme } from '../lib/themes'
@@ -47,7 +48,7 @@ export default function RunView({ id, tabId, active }: { id: string; tabId: stri
       const el = host.current
       if (!el || el.clientWidth === 0) return
       try {
-        fit.fit()
+        fitTerminal(term, fit)
       } catch {
       }
     }

@@ -11,7 +11,7 @@ import { register } from '../lib/panes'
 import { basename, shellQuote } from '../lib/paths'
 import { currentTheme } from '../lib/settings'
 import * as S from '../lib/store'
-import { keepOutput, openShell, takeRestored, type Shell } from '../lib/terminals'
+import { fitTerminal, keepOutput, openShell, takeRestored, type Shell } from '../lib/terminals'
 import { TermVim } from '../lib/termVim'
 import { xtermTheme } from '../lib/themes'
 import TermFind from './TermFind'
@@ -76,7 +76,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
       const el = host.current
       if (!el || el.clientWidth === 0 || el.clientHeight === 0) return
       try {
-        fit.fit()
+        fitTerminal(term, fit)
       } catch {
       }
     }
@@ -261,7 +261,7 @@ export default function TerminalPane({ id, tabId, cwd, active, centered }: Props
     document.fonts?.ready.then(() => setFontsReady((n) => n + 1))
   }, [])
 
-  const width = Math.ceil(maxColumns * charWidth(fontFamily, fontSize) + charWidth(fontFamily, fontSize) + 14)
+  const width = Math.ceil(maxColumns * charWidth(fontFamily, fontSize) + charWidth(fontFamily, fontSize))
   return (
     <div className={`pane-inner ${centered ? 'centered' : ''}`} style={centered ? { maxWidth: width } : undefined}>
       <div ref={host} className="term-host" />

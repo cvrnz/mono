@@ -77,6 +77,9 @@ Every project's first tabs are Explorer, Git, Run, Search and SQL, which can't b
 you open come after them, past a divider; drag those tabs to reorder them. They show as icons;
 `TabIcons` switches them to names (`"tabIcons": false` in the settings file).
 
+Scrollbars appear only while something scrolls, is dragged by its scrollbar, or has the pointer at its
+edge, and take no room beside the text.
+
 - **Explorer** (Cmd+E, again to go back): the folder's tree and a preview of the selected
   file, showing the file that was open. `j`/`k` move, `l`/Enter open or expand, `h` collapse,
   `a` new file (end with `/` for a folder), `r` rename or move, `d` delete, `y` copy the path,

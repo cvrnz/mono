@@ -5,6 +5,7 @@ import CssWorker from 'monaco-editor/language/css/css.worker?worker'
 import HtmlWorker from 'monaco-editor/language/html/html.worker?worker'
 import TsWorker from 'monaco-editor/language/typescript/ts.worker?worker'
 import { themes, monacoTheme } from './themes'
+import { markScrolling } from './scrollbars'
 
 self.MonacoEnvironment = {
   getWorker(_id: string, label: string) {
@@ -116,5 +117,11 @@ export function languageName(id: string, path?: string | null): string {
   const lang = monaco.languages.getLanguages().find((l) => l.id === id)
   return lang?.aliases?.[0] ?? id.charAt(0).toUpperCase() + id.slice(1)
 }
+
+monaco.editor.onDidCreateEditor((editor) => {
+  editor.onDidScrollChange((e) => {
+    if (e.scrollTopChanged || e.scrollLeftChanged) markScrolling(editor.getDomNode()?.querySelector('.editor-scrollable'))
+  })
+})
 
 export { monaco }
