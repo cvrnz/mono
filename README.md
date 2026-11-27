@@ -73,9 +73,9 @@ The command palette runs the app's commands (`Themes`, `ToggleLineNumbers`, `Tog
 keybindings, any Ex command (`w`, `e path`, `%s/a/b/g`, `10`, `sort`; `:` in the file opens Vim's own
 prompt for those too). Tab completes the highlighted command.
 
-Every project's first three tabs are Explorer, Git and Search, which can't be closed; the tabs
-you open come after them, past a divider; drag those tabs to reorder them. `TabIcons` shows those three as icons instead of names (`tabIcons`
-in the settings file).
+Every project's first tabs are Explorer, Git, Run, Search and SQL, which can't be closed; the tabs
+you open come after them, past a divider; drag those tabs to reorder them. They show as icons;
+`TabIcons` switches them to names (`"tabIcons": false` in the settings file).
 
 - **Explorer** (Cmd+E, again to go back): the folder's tree and a preview of the selected
   file, showing the file that was open. `j`/`k` move, `l`/Enter open or expand, `h` collapse,

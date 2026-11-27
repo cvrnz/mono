@@ -190,7 +190,7 @@ function TabBar() {
   const dragging = S.useStore((s) => s.dragging)
   const active = S.useStore((s) => s.active)
   const side = S.useStore((s) => S.sidebar(s))
-  const icons = S.useStore((s) => Boolean(s.settings.tabIcons))
+  const icons = S.useStore((s) => s.settings.tabIcons !== false)
   S.useStore((s) => s.procs)
   return (
     <div className="tabbar">

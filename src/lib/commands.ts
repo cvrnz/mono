@@ -172,12 +172,12 @@ export const commands: Command[] = [
   },
   {
     name: 'TabIcons',
-    desc: 'Show the Explorer, Git and Search tabs as icons or as text',
+    desc: 'Show the Explorer, Git, Run, Search and SQL tabs as icons or as text',
     aliases: ['ToggleTabIcons'],
     run: () => {
-      const tabIcons = !S.get().settings.tabIcons
+      const tabIcons = S.get().settings.tabIcons === false
       updateSettings({ tabIcons })
-      toast(tabIcons ? 'Explorer, Git and Search tabs show icons' : 'Explorer, Git and Search tabs show text')
+      toast(tabIcons ? 'Fixed tabs show icons' : 'Fixed tabs show names')
     },
   },
   {
