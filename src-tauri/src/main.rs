@@ -113,6 +113,25 @@ fn hide_window_buttons(w: &tauri::WebviewWindow) {
 #[cfg(not(target_os = "macos"))]
 fn hide_window_buttons(_: &tauri::WebviewWindow) {}
 
+/// Frosted glass: the window and webview are see-through (the page paints a see-through background) and
+/// macOS blurs what's behind. Linux compositors blur see-through windows themselves, if set up to.
+fn apply_glass(w: &tauri::WebviewWindow, glass: bool) -> tauri::Result<()> {
+    use tauri::window::Color;
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::window::{Effect, EffectState, EffectsBuilder};
+        let effects = glass.then(|| EffectsBuilder::new().effect(Effect::HudWindow).state(EffectState::Active).build());
+        w.set_effects(effects)?;
+    }
+    w.set_background_color(Some(if glass { Color(0, 0, 0, 0) } else { Color(0x1e, 0x1e, 0x1e, 0xff) }))
+}
+
+#[tauri::command]
+fn set_glass(app: AppHandle, glass: bool) -> Result<(), String> {
+    let w = app.get_webview_window("main").ok_or("no window")?;
+    apply_glass(&w, glass).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn themes(app: AppHandle) -> Vec<Value> {
     theme_files(&config_dir(&app).join("themes")).into_iter().map(|(file, text)| json!({ "file": file, "text": text })).collect()
@@ -501,6 +520,8 @@ fn main() {
             move_old_config(app.handle());
             if let Some(w) = app.get_webview_window("main") {
                 hide_window_buttons(&w);
+                let glass = serde_json::from_str::<Value>(&read_settings(app.handle())).ok().and_then(|v| v["glass"].as_bool()).unwrap_or(false);
+                apply_glass(&w, glass)?;
                 // titleBarStyle "Overlay" only applies on macOS; on Linux the page is the title bar.
                 #[cfg(target_os = "linux")]
                 w.set_decorations(false)?;
@@ -531,6 +552,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             settings,
             save_settings,
+            set_glass,
             themes,
             theme_install,
             theme_update,

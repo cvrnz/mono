@@ -25,6 +25,10 @@ export type Settings = {
   uiFont: string
   /** How much the whole window is zoomed, 1 for none. */
   zoom?: number
+  /** Frosted glass: the window shows a blurred desktop through its background. */
+  glass?: boolean
+  /** How solid the window's background is in glass mode, 0 to 1 (0.8 if unset). */
+  glassOpacity?: number
   dockerPath?: string
   recents: Target[]
   sqlConnections?: SqlConnection[]

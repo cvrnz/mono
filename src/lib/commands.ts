@@ -3,7 +3,7 @@ import { errorText } from './bridge'
 import { changeDirectory, disconnect, newProject, reconnect } from './connection'
 import { errorLog, prompt, toast } from './dialogs'
 import { pane } from './panes'
-import { addThemeRepo, loadUserThemes, removeThemeRepo, updateSettings, updateThemeRepos, zoom } from './settings'
+import { addThemeRepo, loadUserThemes, removeThemeRepo, setGlass, updateSettings, updateThemeRepos, zoom } from './settings'
 import * as S from './store'
 
 export type Command = {
@@ -169,6 +169,19 @@ export const commands: Command[] = [
     desc: 'Work in a different folder (where terminals open and git looks for repos)',
     aliases: ['cd', 'ChangeDir'],
     run: (args) => changeDirectory(args),
+  },
+  {
+    name: 'Glass',
+    desc: 'Turn frosted glass on or off: the window shows a blurred desktop through its background',
+    aliases: ['ToggleGlass', 'Frost', 'Transparency'],
+    always: true,
+    run: () => {
+      const glass = !S.get().settings.glass
+      setGlass(glass).then(
+        () => toast(glass ? 'Glass on' : 'Glass off'),
+        (e) => toast(errorText(e), 'error'),
+      )
+    },
   },
   {
     name: 'TabIcons',

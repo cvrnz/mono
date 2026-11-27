@@ -12,7 +12,7 @@ mono-host.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 base64.workspace = true
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-dialog = "2"
 tokio = { version = "1", features = ["process", "io-util", "sync", "time", "net", "macros", "rt-multi-thread"] }
 

@@ -16,6 +16,7 @@ export async function loadSettings() {
   if (saved.fontFamily === oldDefaultFont) delete saved.fontFamily
   S.set({ platform, settings: { ...S.defaultSettings, ...saved } })
   applyZoom()
+  applyGlass()
   document.documentElement.dataset.platform = platform
   await loadUserThemes()
   void installThemes()
@@ -88,6 +89,21 @@ export function zoom(step: 1 | -1 | 0) {
   void updateSettings({ zoom: next === 1 ? undefined : next })
   applyZoom()
   toast(`Zoom ${Math.round(next * 100)}%`)
+}
+
+function applyGlass() {
+  const { glass, glassOpacity } = S.get().settings
+  const root = document.documentElement
+  root.toggleAttribute('data-glass', !!glass)
+  const opacity = Math.min(1, Math.max(0, glassOpacity ?? 0.8))
+  root.style.setProperty('--glass', `${Math.round(opacity * 100)}%`)
+}
+
+/** Turns frosted glass on or off (the window's blur and transparency are set by the app). */
+export async function setGlass(glass: boolean) {
+  await invoke('set_glass', { glass })
+  await updateSettings({ glass: glass || undefined })
+  applyGlass()
 }
 
 export function currentTheme() {

@@ -78,7 +78,9 @@ you open come after them, past a divider; drag those tabs to reorder them. They 
 `TabIcons` switches them to names (`"tabIcons": false` in the settings file).
 
 Scrollbars appear only while something scrolls, is dragged by its scrollbar, or has the pointer at its
-edge, and take no room beside the text.
+edge, and take no room beside the text. `Glass` turns on frosted glass: the window shows the blurred
+desktop through its background (`"glass": true` in the settings file, and `"glassOpacity": 0.8` for
+how solid the background stays). On Linux the compositor does the blurring, if it's set up to.
 
 - **Explorer** (Cmd+E, again to go back): the folder's tree and a preview of the selected
   file, showing the file that was open. `j`/`k` move, `l`/Enter open or expand, `h` collapse,

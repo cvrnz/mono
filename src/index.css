@@ -38,7 +38,7 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
-  background: var(--bg, #282c34);
+  background: var(--window, var(--bg, #282c34));
   color: var(--fg, #abb2bf);
   font-family: var(--sans);
   font-size: 16px;
@@ -2100,3 +2100,20 @@ kbd:last-of-type {
   transition: none;
 }
 
+/* Frosted glass (the Glass command): the window's background lets the blurred desktop through. Panes that
+   cover the whole window take the same see-through background, and hide what they cover. */
+:root[data-glass] {
+  --window: color-mix(in srgb, var(--bg) var(--glass, 80%), transparent);
+}
+:root[data-glass] body,
+:root[data-glass] #root,
+:root[data-glass] .run-view,
+:root[data-glass] .slides-view {
+  background: transparent;
+}
+:root[data-glass] .connect-layer {
+  background: none;
+}
+:root[data-glass] .panes:has(> .connect-layer) > :not(.connect-layer) {
+  visibility: hidden;
+}
